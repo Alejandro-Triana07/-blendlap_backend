@@ -1,0 +1,52 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
+import express, { Application } from 'express';
+import cors from 'cors';
+import { testConnection } from './database/connection';
+import { iniciarCronJobs } from './utils/cron';
+import logger from './utils/logger';
+import authRoutes from './routes/auth.routes';
+import servicioRoutes from './routes/servicio.routes';
+import reservaRoutes from './routes/reserva.routes';
+import usuarioRoutes from './routes/usuario.routes';
+import clienteRoutes from './routes/cliente.routes';
+import turnoRoutes from './routes/turno.routes';
+import productoRoutes from './routes/producto.routes';
+import ventaRoutes from './routes/venta.routes';
+import reporteRoutes from './routes/reporte.routes';
+
+const app: Application = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use('/api/auth', authRoutes);
+app.use('/api/servicios', servicioRoutes);
+app.use('/api/reservas', reservaRoutes);
+app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/clientes', clienteRoutes);
+app.use('/api/turnos', turnoRoutes);
+app.use('/api/productos', productoRoutes);
+app.use('/api/ventas', ventaRoutes);
+app.use('/api/reportes', reporteRoutes);
+
+app.get('/api/health', (_req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Servidor funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, async () => {
+  await testConnection();
+  iniciarCronJobs();
+  logger.info(`Servidor corriendo en http://localhost:${PORT}`);
+  logger.info(`Ambiente: ${process.env.NODE_ENV}`);
+});
+
+export default app;
