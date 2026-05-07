@@ -22,14 +22,14 @@ export class ServicioModel {
   }
 
   // Crear servicio
-  static async create(data: ICrearServicio): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO servicio (nombre_servicio, descripcion, precio, duracion)
-       VALUES (?, ?, ?, ?)`,
-      [data.nombre_servicio, data.descripcion || null, data.precio, data.duracion]
-    );
-    return result.insertId;
-  }
+ static async create(data: ICrearServicio): Promise<number> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    `INSERT INTO servicio (nombre_servicio, descripcion, precio, duracion, imagen)
+     VALUES (?, ?, ?, ?, ?)`,
+    [data.nombre_servicio, data.descripcion || null, data.precio, data.duracion, data.imagen || null]
+  );
+  return result.insertId;
+}
 
   // Actualizar servicio
   static async update(id: number, data: IActualizarServicio): Promise<boolean> {
@@ -52,6 +52,10 @@ export class ServicioModel {
       campos.push('duracion = ?');
       valores.push(data.duracion);
     }
+    if (data.imagen !== undefined) {
+  campos.push('imagen = ?');
+  valores.push(data.imagen);
+}
 
     if (campos.length === 0) return false;
 
@@ -72,4 +76,5 @@ export class ServicioModel {
     );
     return result.affectedRows > 0;
   }
+  
 }

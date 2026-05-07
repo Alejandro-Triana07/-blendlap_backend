@@ -1,9 +1,10 @@
 export interface IServicio {
-  id_servicio: number;
+  id_servicio?: number;
   nombre_servicio: string;
-  descripcion: string | null;
+  descripcion?: string;
   precio: number;
   duracion: number;
+  imagen?: string;
 }
 
 export interface ICrearServicio {
@@ -11,6 +12,7 @@ export interface ICrearServicio {
   descripcion?: string;
   precio: number;
   duracion: number;
+  imagen?: string;
 }
 
 export interface IActualizarServicio {
@@ -18,4 +20,5 @@ export interface IActualizarServicio {
   descripcion?: string;
   precio?: number;
   duracion?: number;
+  imagen?: string;
 }

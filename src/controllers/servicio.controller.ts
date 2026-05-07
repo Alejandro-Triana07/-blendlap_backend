@@ -55,4 +55,16 @@ export class ServicioController {
       res.status(404).json({ ok: false, mensaje: error.message });
     }
   }
+  static async uploadImagen(req: Request, res: Response): Promise<void> {
+  try {
+    console.log('uploadImagen llamado:', new Date().toISOString());
+    if (!req.file) {
+      res.status(400).json({ ok: false, mensaje: 'No se envió ninguna imagen' });
+      return;
+    }
+    res.status(200).json({ ok: true, nombreArchivo: req.file.filename });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, mensaje: error.message });
+  }
+}
 }

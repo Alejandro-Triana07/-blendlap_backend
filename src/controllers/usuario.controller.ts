@@ -3,7 +3,6 @@ import { UsuarioService } from '../services/usuario.service';
 
 export class UsuarioController {
 
-  // GET /api/usuarios
   static async getAll(req: Request, res: Response): Promise<void> {
     try {
       const usuarios = await UsuarioService.getAll();
@@ -13,7 +12,6 @@ export class UsuarioController {
     }
   }
 
-  // PUT /api/usuarios/:id/rol
   static async cambiarRol(req: Request, res: Response): Promise<void> {
     try {
       const id = parseInt(req.params.id);
@@ -29,7 +27,6 @@ export class UsuarioController {
     }
   }
 
-  // PUT /api/usuarios/:id/estado
   static async cambiarEstado(req: Request, res: Response): Promise<void> {
     try {
       const id = parseInt(req.params.id);
@@ -39,6 +36,74 @@ export class UsuarioController {
         return;
       }
       const resultado = await UsuarioService.cambiarEstado(id, estado);
+      res.status(200).json({ ok: true, ...resultado });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async getBarberos(req: Request, res: Response): Promise<void> {
+    try {
+      const barberos = await UsuarioService.getBarberos();
+      res.status(200).json({ ok: true, data: barberos });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async uploadFotoBarbero(req: Request, res: Response): Promise<void> {
+    try {
+      if (!req.file) {
+        res.status(400).json({ ok: false, mensaje: 'No se envió ninguna imagen' });
+        return;
+      }
+      res.status(200).json({ ok: true, nombreArchivo: req.file.filename });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async crearBarbero(req: Request, res: Response): Promise<void> {
+    try {
+      const barbero = await UsuarioService.crearBarbero(req.body);
+      res.status(201).json({ ok: true, data: barbero });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async actualizarBarbero(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+      const barbero = await UsuarioService.actualizarBarbero(id, req.body);
+      res.status(200).json({ ok: true, data: barbero });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async eliminarBarbero(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+      const resultado = await UsuarioService.eliminarBarbero(id);
+      res.status(200).json({ ok: true, ...resultado });
+    } catch (error: any) {
+      res.status(404).json({ ok: false, mensaje: error.message });
+    }
+  }
+  static async getAllBarberos(req: Request, res: Response): Promise<void> {
+    try {
+      const barberos = await UsuarioService.getAllBarberos();
+      res.status(200).json({ ok: true, data: barberos });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async reactivarBarbero(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+      const resultado = await UsuarioService.reactivarBarbero(id);
       res.status(200).json({ ok: true, ...resultado });
     } catch (error: any) {
       res.status(400).json({ ok: false, mensaje: error.message });

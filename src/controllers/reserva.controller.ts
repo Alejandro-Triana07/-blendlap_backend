@@ -80,13 +80,14 @@ export class ReservaController {
     }
     // GET /api/reservas/disponibilidad?id_barbero=2&fecha=2025-06-01
     static async getDisponibilidad(req: Request, res: Response): Promise<void> {
-        try {
-            const id_barbero = parseInt(req.query.id_barbero as string);
-            const fecha = req.query.fecha as string;
-            const resultado = await ReservaService.getDisponibilidad(id_barbero, fecha);
-            res.status(200).json({ ok: true, data: resultado });
-        } catch (error: any) {
-            res.status(400).json({ ok: false, mensaje: error.message });
-        }
-    }
+  try {
+    const id_barbero = parseInt(req.query.id_barbero as string);
+    const fecha = req.query.fecha as string;
+    const duracion_total = parseInt(req.query.duracion_total as string) || 30;
+    const resultado = await ReservaService.getDisponibilidad(id_barbero, fecha, duracion_total);
+    res.status(200).json({ ok: true, data: resultado });
+  } catch (error: any) {
+    res.status(400).json({ ok: false, mensaje: error.message });
+  }
+}
 }

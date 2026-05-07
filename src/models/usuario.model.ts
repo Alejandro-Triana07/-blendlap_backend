@@ -77,4 +77,95 @@ export class UsuarioModel {
     );
     return result.insertId;
   }
+  static async findByRol(rol: string): Promise<any[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.especialidades, u.descripcion, u.experiencia,
+      COALESCE(COUNT(DISTINCT r.id_reserva), 0) as total_agendamientos,
+      COALESCE(AVG(res.calificacion), 0) as promedio_estrellas,
+      COUNT(DISTINCT res.id_resena) as total_resenas
+     FROM usuario_rol u
+     LEFT JOIN reserva r ON r.id_barbero = u.id_usuario 
+       AND r.estado NOT IN ('cancelada')
+     LEFT JOIN resena res ON res.id_barbero = u.id_usuario
+     WHERE u.rol = ? AND u.estado = 'activo'
+     GROUP BY u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.especialidades, u.descripcion, u.experiencia`,
+      [rol]
+    );
+    return rows as any[];
+  }
+  static async findById(id: number): Promise<any> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT * FROM usuario_rol WHERE id_usuario = ?',
+      [id]
+    );
+    return rows[0] || null;
+  }
+
+  static async crearBarbero(data: any): Promise<any> {
+    const bcrypt = require('bcryptjs');
+    const hash = await bcrypt.hash(data.contrasena, 12);
+    const [result] = await pool.execute<ResultSetHeader>(
+      `INSERT INTO usuario_rol (nombre, apellido, correo_electronico, contrasena, rol, titulo, descripcion, foto,experiencia,especialidades)
+     VALUES (?, ?, ?, ?, 'barbero', ?, ?, ?, ?, ?)`,
+      [data.nombre, data.apellido, data.correo_electronico, hash, data.titulo || null, data.descripcion || null, data.foto || null, data.experiencia || 0, data.especialidades || null]
+    );
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT * FROM usuario_rol WHERE id_usuario = ?',
+      [result.insertId]
+    );
+    return rows[0];
+  }
+
+  static async actualizarBarbero(id: number, data: any): Promise<any> {
+    const campos: string[] = [];
+    const valores: any[] = [];
+
+    if (data.nombre !== undefined) { campos.push('nombre = ?'); valores.push(data.nombre); }
+    if (data.apellido !== undefined) { campos.push('apellido = ?'); valores.push(data.apellido); }
+    if (data.titulo !== undefined) { campos.push('titulo = ?'); valores.push(data.titulo); }
+    if (data.descripcion !== undefined) { campos.push('descripcion = ?'); valores.push(data.descripcion); }
+    if (data.foto !== undefined) { campos.push('foto = ?'); valores.push(data.foto); }
+    if (data.estado !== undefined) { campos.push('estado = ?'); valores.push(data.estado); }
+    if (data.experiencia !== undefined) { campos.push('experiencia = ?'); valores.push(data.experiencia); }
+    if (data.especialidades !== undefined) { campos.push('especialidades = ?'); valores.push(data.especialidades); }
+
+    if (campos.length === 0) throw new Error('No hay campos para actualizar');
+
+    valores.push(id);
+    await pool.execute(
+      `UPDATE usuario_rol SET ${campos.join(', ')} WHERE id_usuario = ?`,
+      valores
+    );
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT * FROM usuario_rol WHERE id_usuario = ?',
+      [id]
+    );
+    return rows[0];
+  }
+
+  static async delete(id: number): Promise<boolean> {
+    const [result] = await pool.execute<ResultSetHeader>(
+      'DELETE FROM usuario_rol WHERE id_usuario = ?',
+      [id]
+    );
+    return result.affectedRows > 0;
+  }
+  static async findAllBarberos(): Promise<any[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT 
+      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.descripcion, u.experiencia, u.estado,u.especialidades,
+      COALESCE(COUNT(DISTINCT r.id_reserva), 0) as total_agendamientos,
+      COALESCE(AVG(res.calificacion), 0) as promedio_estrellas,
+      COUNT(DISTINCT res.id_resena) as total_resenas
+     FROM usuario_rol u
+     LEFT JOIN reserva r ON r.id_barbero = u.id_usuario 
+       AND r.estado NOT IN ('cancelada')
+     LEFT JOIN resena res ON res.id_barbero = u.id_usuario
+     WHERE u.rol = 'barbero'
+     GROUP BY u.id_usuario
+     ORDER BY u.estado ASC, u.nombre ASC`
+    );
+    return rows as any[];
+  }
 }

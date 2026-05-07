@@ -16,7 +16,7 @@ export class AuthModel {
     // Buscar usuario por ID
     static async findById(id: number): Promise<IUsuarioRol | null> {
         const [rows] = await pool.execute<RowDataPacket[]>(
-            'SELECT * FROM usuario_rol WHERE id_usuario = ? AND estado = "activo"',
+            'SELECT * FROM usuario_rol WHERE id_usuario = ?',
             [id]
         );
         return rows.length > 0 ? (rows[0] as IUsuarioRol) : null;
@@ -95,4 +95,22 @@ export class AuthModel {
         );
         return rows as IUsuarioRol[];
     }
+    // Buscar por Google ID
+static async findByGoogleId(google_id: string): Promise<IUsuarioRol | null> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    'SELECT * FROM usuario_rol WHERE google_id = ? AND estado = "activo"',
+    [google_id]
+  );
+  return rows.length > 0 ? (rows[0] as IUsuarioRol) : null;
+}
+
+// Crear usuario con Google
+static async createConGoogle(data: any): Promise<number> {
+  const [result] = await pool.execute<ResultSetHeader>(
+    `INSERT INTO usuario_rol (nombre, apellido, correo_electronico, contrasena, rol, google_id)
+     VALUES (?, ?, ?, NULL, 'cliente', ?)`,
+    [data.nombre, data.apellido, data.correo_electronico, data.google_id]
+  );
+  return result.insertId;
+}
 }

@@ -3,9 +3,11 @@ import jwt from 'jsonwebtoken';
 import { AuthModel } from '../models/auth.model';
 import { ILoginPayload, IRegistroPayload, IJwtPayload } from '../interfaces/auth.interface';
 import { pool } from '../database/connection';
+import { OAuth2Client } from 'google-auth-library';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export class AuthService {
 
@@ -138,5 +140,85 @@ export class AuthService {
         await AuthModel.marcarCodigoUsado(correo_electronico, codigo);
 
         return { mensaje: 'Contraseña actualizada correctamente' };
+    }
+
+    static async loginConGoogle(token: string) {
+        // 1. Verificar token con Google
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID
+        });
+
+        const payload = ticket.getPayload();
+        if (!payload) throw new Error('Token de Google inválido');
+
+        const { sub: google_id, email, given_name, family_name } = payload;
+
+        // 2. Buscar si ya existe
+        let usuario = await AuthModel.findByGoogleId(google_id!);
+        if (!google_id || !email) throw new Error('Token de Google inválido');
+
+        if (!usuario) {
+            const existe = await AuthModel.findByCorreo(email);
+            if (existe) {
+                await pool.execute(
+                    'UPDATE usuario_rol SET google_id = ? WHERE correo_electronico = ?',
+                    [google_id, email]
+                );
+                usuario = await AuthModel.findByCorreo(email);
+            } else {
+                const id_usuario = await AuthModel.createConGoogle({
+                    nombre: given_name || 'Usuario',
+                    apellido: family_name || 'Google',
+                    correo_electronico: email,
+                    google_id
+                });
+                usuario = await AuthModel.findById(id_usuario);
+            }
+        }
+
+        // 3. Si no existe, crear
+        if (!usuario) {
+            const existe = await AuthModel.findByCorreo(email!);
+            if (existe) {
+                // Ya tiene cuenta, vincular google_id
+                await pool.execute(
+                    'UPDATE usuario_rol SET google_id = ? WHERE correo_electronico = ?',
+                    [google_id, email]
+                );
+                usuario = await AuthModel.findByCorreo(email!);
+            } else {
+                // Crear nuevo usuario
+                const id_usuario = await AuthModel.createConGoogle({
+                    nombre: given_name || 'Usuario',
+                    apellido: family_name || 'Google',
+                    correo_electronico: email,
+                    google_id
+                });
+                usuario = await AuthModel.findById(id_usuario);
+            }
+        }
+
+        if (!usuario) throw new Error('Error al crear usuario');
+
+        // 4. Generar JWT
+        const jwtPayload: IJwtPayload = {
+            id_usuario: usuario.id_usuario,
+            correo_electronico: usuario.correo_electronico,
+            rol: usuario.rol
+        };
+
+        const token_jwt = jwt.sign(jwtPayload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN } as any);
+
+        return {
+            token: token_jwt,
+            usuario: {
+                id_usuario: usuario.id_usuario,
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
+                correo_electronico: usuario.correo_electronico,
+                rol: usuario.rol
+            }
+        };
     }
 }

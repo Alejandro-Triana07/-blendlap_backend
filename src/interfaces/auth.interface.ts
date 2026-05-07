@@ -49,3 +49,16 @@ export interface IRegistroPayload {
   telefono?: string;
   observaciones?: string;
 }
+export interface IUsuarioRol {
+  id_usuario: number;
+  nombre: string;
+  apellido: string;
+  correo_electronico: string;
+  contrasena: string;
+  rol: 'admin' | 'barbero' | 'cliente';
+  estado: 'activo' | 'inactivo';
+  fecha_creacion: Date;
+  telefono?: string;
+  observaciones?: string;
+  google_id?: string; // ← agrega esto
+}

@@ -15,6 +15,8 @@ import turnoRoutes from './routes/turno.routes';
 import productoRoutes from './routes/producto.routes';
 import ventaRoutes from './routes/venta.routes';
 import reporteRoutes from './routes/reporte.routes';
+import path from 'path';
+import resenaRoutes from './routes/resena.routes';
 
 const app: Application = express();
 
@@ -31,6 +33,9 @@ app.use('/api/turnos', turnoRoutes);
 app.use('/api/productos', productoRoutes);
 app.use('/api/ventas', ventaRoutes);
 app.use('/api/reportes', reporteRoutes);
+app.use('/images', express.static(path.join(__dirname, '../public/images')));
+app.use('/api/resenas', resenaRoutes);
+
 
 app.get('/api/health', (_req, res) => {
   res.json({

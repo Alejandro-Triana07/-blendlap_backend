@@ -10,4 +10,8 @@ router.get('/perfil', verificarToken, AuthController.perfil);
 router.put('/cambiar-password', AuthController.cambiarPassword);
 router.post('/solicitar-recuperacion', AuthController.solicitarRecuperacion);
 router.post('/resetear-password', AuthController.resetearPassword);
+router.post('/logout', verificarToken, (req, res) => {
+  res.status(200).json({ ok: true, mensaje: 'Sesión cerrada correctamente' });
+});
+router.post('/google', AuthController.loginConGoogle);
 export default router;

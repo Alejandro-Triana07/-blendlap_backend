@@ -4,8 +4,11 @@ import { verificarToken, verificarRol } from '../middlewares/auth.middleware';
 
 const router = Router();
 
+// Rutas públicas
+router.get('/disponibilidad', ReservaController.getDisponibilidad);
+
+// Rutas autenticadas
 router.get('/', verificarToken, verificarRol('admin'), ReservaController.getAll);
-router.get('/disponibilidad', verificarToken, ReservaController.getDisponibilidad);
 router.get('/mis-reservas', verificarToken, verificarRol('cliente'), ReservaController.getMisReservas);
 router.get('/mis-servicios', verificarToken, verificarRol('barbero'), ReservaController.getMisServicios);
 router.get('/:id', verificarToken, verificarRol('admin', 'barbero'), ReservaController.getById);

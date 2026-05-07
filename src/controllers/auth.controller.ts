@@ -98,4 +98,17 @@ export class AuthController {
             res.status(400).json({ ok: false, mensaje: error.message });
         }
     }
+    static async loginConGoogle(req: Request, res: Response): Promise<void> {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      res.status(400).json({ ok: false, mensaje: 'Token de Google requerido' });
+      return;
+    }
+    const resultado = await AuthService.loginConGoogle(token);
+    res.status(200).json({ ok: true, ...resultado });
+  } catch (error: any) {
+    res.status(401).json({ ok: false, mensaje: error.message });
+  }
+}
 }
