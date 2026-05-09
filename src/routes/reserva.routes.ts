@@ -15,5 +15,6 @@ router.get('/:id', verificarToken, verificarRol('admin', 'barbero'), ReservaCont
 router.post('/', verificarToken, verificarRol('admin', 'cliente'), ReservaController.create);
 router.put('/:id', verificarToken, ReservaController.update);
 router.delete('/:id', verificarToken, verificarRol('admin'), ReservaController.delete);
-
+router.get('/barbero/hoy', verificarToken, verificarRol('barbero'), ReservaController.getCitasHoy);
+router.get('/barbero/proximas', verificarToken, verificarRol('barbero'), ReservaController.getProximas);
 export default router;

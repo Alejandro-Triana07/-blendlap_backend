@@ -5,19 +5,28 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 export class ReservaModel {
 
     // Obtener todas las reservas
-    static async findAll(): Promise<IReserva[]> {
-        const [rows] = await pool.execute<RowDataPacket[]>(
-            `SELECT r.*,
-        CONCAT(c.nombre, ' ', c.apellido) AS nombre_cliente,
-        CONCAT(b.nombre, ' ', b.apellido) AS nombre_barbero,
-        GROUP_CONCAT(rs.id_servicio) AS servicios
-       FROM reserva r
-       JOIN usuario_rol c ON r.id_cliente = c.id_usuario
-       JOIN usuario_rol b ON r.id_barbero = b.id_usuario
-       LEFT JOIN reserva_servicio rs ON r.id_reserva = rs.id_reserva
-       GROUP BY r.id_reserva
-       ORDER BY r.fecha DESC, r.hora DESC`
-        );
+    static async findAll(filtros?: { fecha?: string; id_barbero?: string; estado?: string }): Promise<IReserva[]> {
+        let query = `SELECT r.*,
+      CONCAT(c.nombre, ' ', c.apellido) AS nombre_cliente,
+      CONCAT(b.nombre, ' ', b.apellido) AS nombre_barbero,
+      GROUP_CONCAT(DISTINCT s.nombre_servicio) AS nombre_servicio,
+      COALESCE(SUM(rs.precio_cobrado), 0) AS precio_total
+     FROM reserva r
+     JOIN usuario_rol c ON r.id_cliente = c.id_usuario
+     JOIN usuario_rol b ON r.id_barbero = b.id_usuario
+     LEFT JOIN reserva_servicio rs ON r.id_reserva = rs.id_reserva
+     LEFT JOIN servicio s ON rs.id_servicio = s.id_servicio
+     WHERE 1=1`;
+
+        const valores: any[] = [];
+
+        if (filtros?.fecha) { query += ' AND r.fecha = ?'; valores.push(filtros.fecha); }
+        if (filtros?.id_barbero) { query += ' AND r.id_barbero = ?'; valores.push(filtros.id_barbero); }
+        if (filtros?.estado) { query += ' AND r.estado = ?'; valores.push(filtros.estado); }
+
+        query += ' GROUP BY r.id_reserva ORDER BY r.fecha DESC, r.hora DESC';
+
+        const [rows] = await pool.execute<RowDataPacket[]>(query, valores);
         return rows.map((r: any) => ({
             ...r,
             servicios: r.servicios ? r.servicios.split(',').map(Number) : []
@@ -51,18 +60,24 @@ export class ReservaModel {
     static async findByCliente(id_cliente: number): Promise<IReserva[]> {
         const [rows] = await pool.execute<RowDataPacket[]>(
             `SELECT r.*,
-        CONCAT(b.nombre, ' ', b.apellido) AS nombre_barbero,
-        GROUP_CONCAT(rs.id_servicio) AS servicios
-       FROM reserva r
-       JOIN usuario_rol b ON r.id_barbero = b.id_usuario
-       LEFT JOIN reserva_servicio rs ON r.id_reserva = rs.id_reserva
-       WHERE r.id_cliente = ?
-       GROUP BY r.id_reserva
-       ORDER BY r.fecha DESC, r.hora DESC`,
+      CONCAT(b.nombre, ' ', b.apellido) AS nombre_barbero,
+      GROUP_CONCAT(DISTINCT s.nombre_servicio) AS nombre_servicio,
+      COALESCE(SUM(rs.precio_cobrado), 0) AS precio_total,
+      COALESCE(SUM(s.duracion), 0) AS duracion_total,
+      IF(re.id_resena IS NOT NULL, 1, 0) AS tiene_resena
+     FROM reserva r
+     JOIN usuario_rol b ON r.id_barbero = b.id_usuario
+     LEFT JOIN reserva_servicio rs ON r.id_reserva = rs.id_reserva
+     LEFT JOIN servicio s ON rs.id_servicio = s.id_servicio
+     LEFT JOIN resena re ON re.id_reserva = r.id_reserva
+     WHERE r.id_cliente = ?
+     GROUP BY r.id_reserva
+     ORDER BY r.fecha DESC, r.hora DESC`,
             [id_cliente]
         );
         return rows.map((r: any) => ({
             ...r,
+            tiene_resena: r.tiene_resena === 1,
             servicios: r.servicios ? r.servicios.split(',').map(Number) : []
         })) as IReserva[];
     }
@@ -219,4 +234,45 @@ export class ReservaModel {
         );
         return rows.map((r: any) => r.hora);
     }
+    /* dashboard barbero */
+    static async findByBarberoFecha(id_barbero: number, fecha: string): Promise<any[]> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT r.*,
+      CONCAT(c.nombre, ' ', c.apellido) AS nombre_cliente,
+      GROUP_CONCAT(DISTINCT s.nombre_servicio) AS nombre_servicio,
+      COALESCE(SUM(s.duracion), 30) AS duracion_total,
+      COALESCE(SUM(rs.precio_cobrado), 0) AS precio_total
+     FROM reserva r
+     JOIN usuario_rol c ON c.id_usuario = r.id_cliente
+     LEFT JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+     LEFT JOIN servicio s ON s.id_servicio = rs.id_servicio
+     WHERE r.id_barbero = ? AND r.fecha = ?
+     AND r.estado NOT IN ('cancelada')
+     GROUP BY r.id_reserva
+     ORDER BY r.hora ASC`,
+    [id_barbero, fecha]
+  );
+  return rows as any[];
+}
+
+static async findProximasBarbero(id_barbero: number, desde: string): Promise<any[]> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT r.*,
+      CONCAT(c.nombre, ' ', c.apellido) AS nombre_cliente,
+      GROUP_CONCAT(DISTINCT s.nombre_servicio) AS nombre_servicio,
+      COALESCE(SUM(s.duracion), 30) AS duracion_total,
+      COALESCE(SUM(rs.precio_cobrado), 0) AS precio_total
+     FROM reserva r
+     JOIN usuario_rol c ON c.id_usuario = r.id_cliente
+     LEFT JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+     LEFT JOIN servicio s ON s.id_servicio = rs.id_servicio
+     WHERE r.id_barbero = ? AND r.fecha > ?
+     AND r.estado NOT IN ('cancelada')
+     GROUP BY r.id_reserva
+     ORDER BY r.fecha ASC, r.hora ASC
+     LIMIT 10`,
+    [id_barbero, desde]
+  );
+  return rows as any[];
+}
 }

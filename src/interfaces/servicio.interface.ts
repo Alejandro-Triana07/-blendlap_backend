@@ -13,6 +13,7 @@ export interface ICrearServicio {
   precio: number;
   duracion: number;
   imagen?: string;
+  categoria?: string;
 }
 
 export interface IActualizarServicio {
@@ -21,4 +22,5 @@ export interface IActualizarServicio {
   precio?: number;
   duracion?: number;
   imagen?: string;
+  categoria?: string;
 }

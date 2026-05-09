@@ -6,8 +6,8 @@ import { RowDataPacket } from 'mysql2';
 
 export class ReservaService {
 
-  static async getAll() {
-    return await ReservaModel.findAll();
+  static async getAll(filtros?: { fecha?: string; id_barbero?: string; estado?: string }) {
+    return await ReservaModel.findAll(filtros);
   }
 
   static async getById(id: number) {
@@ -146,15 +146,35 @@ export class ReservaService {
       throw new Error('id_barbero y fecha son requeridos');
     }
 
+    // ─── Verificar día de semana en horario barbería ───────
+    const diaSemana = new Date(fecha + 'T12:00:00').getDay();
+
+    const [horarioBarberia] = await pool.execute<RowDataPacket[]>(
+      `SELECT * FROM horario_barberia WHERE dia_semana = ?`,
+      [diaSemana]
+    );
+
+    if (horarioBarberia.length === 0 || horarioBarberia[0].activo === 0) {
+      return { id_barbero, fecha, disponible: false, slots: [], motivo: 'La barbería no atiende este día' };
+    }
+
+    const horario = horarioBarberia[0];
+    const [hiH, hiM] = horario.hora_inicio.split(':').map(Number);
+    const [hfH, hfM] = horario.hora_fin.split(':').map(Number);
+    const inicio = hiH * 60 + hiM;
+    const fin = hfH * 60 + hfM;
+
+    // ─── Verificar turno bloqueado ─────────────────────────
     const [turnos] = await pool.execute<RowDataPacket[]>(
       `SELECT * FROM turno WHERE id_usuario = ? AND fecha = ?`,
       [id_barbero, fecha]
     );
 
     if (turnos.length > 0) {
-      return { id_barbero, fecha, disponible: false, slots: [] };
+      return { id_barbero, fecha, disponible: false, slots: [], motivo: 'Barbero no disponible este día' };
     }
 
+    // ─── Reservas existentes ───────────────────────────────
     const [reservas] = await pool.execute<RowDataPacket[]>(
       `SELECT r.hora, COALESCE(SUM(s.duracion), 30) as duracion_reserva
        FROM reserva r
@@ -175,9 +195,25 @@ export class ReservaService {
       }
     }
 
+    // ─── Excepciones barbero (almuerzo, descanso, etc) ────
+    const [excepciones] = await pool.execute<RowDataPacket[]>(
+      `SELECT hora_inicio, hora_fin FROM horario_excepcion
+       WHERE id_usuario = ? AND dia_semana = ?`,
+      [id_barbero, diaSemana]
+    );
+
+    for (const exc of excepciones) {
+      const [eHH, eMM] = exc.hora_inicio.split(':').map(Number);
+      const [eFH, eFM] = exc.hora_fin.split(':').map(Number);
+      const excInicio = eHH * 60 + eMM;
+      const excFin = eFH * 60 + eFM;
+      for (let m = excInicio; m < excFin; m++) {
+        minutosOcupados.add(m);
+      }
+    }
+
+    // ─── Generar slots ─────────────────────────────────────
     const slots: { hora: string; disponible: boolean }[] = [];
-    const inicio = 9 * 60;
-    const fin = 21 * 60;
 
     for (let m = inicio; m + duracion_total <= fin; m += duracion_total) {
       let ocupado = false;

@@ -80,7 +80,7 @@ export class UsuarioModel {
   static async findByRol(rol: string): Promise<any[]> {
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT 
-      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.especialidades, u.descripcion, u.experiencia,
+      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.especialidades, u.descripcion, u.experiencia,u.comision,
       COALESCE(COUNT(DISTINCT r.id_reserva), 0) as total_agendamientos,
       COALESCE(AVG(res.calificacion), 0) as promedio_estrellas,
       COUNT(DISTINCT res.id_resena) as total_resenas
@@ -106,9 +106,9 @@ export class UsuarioModel {
     const bcrypt = require('bcryptjs');
     const hash = await bcrypt.hash(data.contrasena, 12);
     const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO usuario_rol (nombre, apellido, correo_electronico, contrasena, rol, titulo, descripcion, foto,experiencia,especialidades)
-     VALUES (?, ?, ?, ?, 'barbero', ?, ?, ?, ?, ?)`,
-      [data.nombre, data.apellido, data.correo_electronico, hash, data.titulo || null, data.descripcion || null, data.foto || null, data.experiencia || 0, data.especialidades || null]
+      `INSERT INTO usuario_rol (nombre, apellido, correo_electronico, contrasena, rol, titulo, descripcion, foto,experiencia,especialidades,comision)
+     VALUES (?, ?, ?, ?, 'barbero', ?, ?, ?, ?, ?, ?)`,
+      [data.nombre, data.apellido, data.correo_electronico, hash, data.titulo || null, data.descripcion || null, data.foto || null, data.experiencia || 0, data.especialidades || null, data.comision || null]
     );
     const [rows] = await pool.execute<RowDataPacket[]>(
       'SELECT * FROM usuario_rol WHERE id_usuario = ?',
@@ -129,6 +129,7 @@ export class UsuarioModel {
     if (data.estado !== undefined) { campos.push('estado = ?'); valores.push(data.estado); }
     if (data.experiencia !== undefined) { campos.push('experiencia = ?'); valores.push(data.experiencia); }
     if (data.especialidades !== undefined) { campos.push('especialidades = ?'); valores.push(data.especialidades); }
+    if (data.comision !== undefined) { campos.push('comision = ?'); valores.push(data.comision); }
 
     if (campos.length === 0) throw new Error('No hay campos para actualizar');
 
@@ -154,7 +155,7 @@ export class UsuarioModel {
   static async findAllBarberos(): Promise<any[]> {
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT 
-      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.descripcion, u.experiencia, u.estado,u.especialidades,
+      u.id_usuario, u.nombre, u.apellido, u.foto, u.titulo, u.descripcion, u.experiencia, u.estado,u.especialidades,u.comision,
       COALESCE(COUNT(DISTINCT r.id_reserva), 0) as total_agendamientos,
       COALESCE(AVG(res.calificacion), 0) as promedio_estrellas,
       COUNT(DISTINCT res.id_resena) as total_resenas

@@ -17,6 +17,9 @@ import ventaRoutes from './routes/venta.routes';
 import reporteRoutes from './routes/reporte.routes';
 import path from 'path';
 import resenaRoutes from './routes/resena.routes';
+import dashboardRoutes from './routes/dashboard.routes';
+import gastoRoutes from './routes/gasto.routes';
+import horarioRoutes from './routes/horario.routes';
 
 const app: Application = express();
 
@@ -35,7 +38,9 @@ app.use('/api/ventas', ventaRoutes);
 app.use('/api/reportes', reporteRoutes);
 app.use('/images', express.static(path.join(__dirname, '../public/images')));
 app.use('/api/resenas', resenaRoutes);
-
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/gastos', gastoRoutes);
+app.use('/api/horarios', horarioRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({

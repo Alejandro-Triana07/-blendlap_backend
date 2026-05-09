@@ -1,0 +1,55 @@
+import { Request, Response } from 'express';
+import { HorarioModel } from '../models/horario.model';
+
+export class HorarioController {
+
+  static async getHorarioBarberia(req: Request, res: Response): Promise<void> {
+    try {
+      const horario = await HorarioModel.getHorarioBarberia();
+      res.status(200).json({ ok: true, data: horario });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async updateDia(req: Request, res: Response): Promise<void> {
+    try {
+      const dia = parseInt(req.params.dia);
+      await HorarioModel.updateDia(dia, req.body);
+      res.status(200).json({ ok: true, mensaje: 'Horario actualizado' });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async getHorarioCompleto(req: Request, res: Response): Promise<void> {
+    try {
+      const id_usuario = parseInt(req.params.id);
+      const horario = await HorarioModel.getHorarioCompleto(id_usuario);
+      res.status(200).json({ ok: true, data: horario });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async createExcepcion(req: Request, res: Response): Promise<void> {
+    try {
+      const id_usuario = req.usuario!.id_usuario;
+      const id = await HorarioModel.createExcepcion({ ...req.body, id_usuario });
+      res.status(201).json({ ok: true, id_excepcion: id });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+
+  static async deleteExcepcion(req: Request, res: Response): Promise<void> {
+    try {
+      const id_usuario = req.usuario!.id_usuario;
+      const id_excepcion = parseInt(req.params.id);
+      await HorarioModel.deleteExcepcion(id_excepcion, id_usuario);
+      res.status(200).json({ ok: true, mensaje: 'Excepción eliminada' });
+    } catch (error: any) {
+      res.status(400).json({ ok: false, mensaje: error.message });
+    }
+  }
+}

@@ -1,12 +1,18 @@
 import { Request, Response } from 'express';
 import { ReservaService } from '../services/reserva.service';
+import { ReservaModel } from '../models/reserva.model';
 
 export class ReservaController {
 
     // GET /api/reservas → solo admin
     static async getAll(req: Request, res: Response): Promise<void> {
         try {
-            const reservas = await ReservaService.getAll();
+            const { fecha, id_barbero, estado } = req.query;
+            const reservas = await ReservaService.getAll({
+                fecha: fecha as string,
+                id_barbero: id_barbero as string,
+                estado: estado as string
+            });
             res.status(200).json({ ok: true, data: reservas });
         } catch (error: any) {
             res.status(500).json({ ok: false, mensaje: error.message });
@@ -80,14 +86,35 @@ export class ReservaController {
     }
     // GET /api/reservas/disponibilidad?id_barbero=2&fecha=2025-06-01
     static async getDisponibilidad(req: Request, res: Response): Promise<void> {
+        try {
+            const id_barbero = parseInt(req.query.id_barbero as string);
+            const fecha = req.query.fecha as string;
+            const duracion_total = parseInt(req.query.duracion_total as string) || 30;
+            const resultado = await ReservaService.getDisponibilidad(id_barbero, fecha, duracion_total);
+            res.status(200).json({ ok: true, data: resultado });
+        } catch (error: any) {
+            res.status(400).json({ ok: false, mensaje: error.message });
+        }
+    }
+    static async getCitasHoy(req: Request, res: Response): Promise<void> {
   try {
-    const id_barbero = parseInt(req.query.id_barbero as string);
-    const fecha = req.query.fecha as string;
-    const duracion_total = parseInt(req.query.duracion_total as string) || 30;
-    const resultado = await ReservaService.getDisponibilidad(id_barbero, fecha, duracion_total);
-    res.status(200).json({ ok: true, data: resultado });
+    const id_barbero = req.usuario!.id_usuario;
+    const hoy = new Date().toISOString().split('T')[0];
+    const reservas = await ReservaModel.findByBarberoFecha(id_barbero, hoy);
+    res.status(200).json({ ok: true, data: reservas });
   } catch (error: any) {
-    res.status(400).json({ ok: false, mensaje: error.message });
+    res.status(500).json({ ok: false, mensaje: error.message });
+  }
+}
+
+static async getProximas(req: Request, res: Response): Promise<void> {
+  try {
+    const id_barbero = req.usuario!.id_usuario;
+    const hoy = new Date().toISOString().split('T')[0];
+    const reservas = await ReservaModel.findProximasBarbero(id_barbero, hoy);
+    res.status(200).json({ ok: true, data: reservas });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, mensaje: error.message });
   }
 }
 }
