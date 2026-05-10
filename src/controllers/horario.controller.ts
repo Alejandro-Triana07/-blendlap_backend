@@ -52,4 +52,13 @@ export class HorarioController {
       res.status(400).json({ ok: false, mensaje: error.message });
     }
   }
+  static async getMisExcepciones(req: Request, res: Response): Promise<void> {
+    try {
+      const id_usuario = req.usuario!.id_usuario;
+      const excepciones = await HorarioModel.getExcepcionesBarbero(id_usuario);
+      res.status(200).json({ ok: true, data: excepciones });
+    } catch (error: any) {
+      res.status(500).json({ ok: false, mensaje: error.message });
+    }
+  }
 }

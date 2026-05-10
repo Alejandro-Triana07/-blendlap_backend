@@ -14,5 +14,6 @@ router.put('/dia/:dia', verificarToken, verificarRol('admin'), HorarioController
 // Barbero — sus propias excepciones
 router.post('/excepciones', verificarToken, verificarRol('barbero'), HorarioController.createExcepcion);
 router.delete('/excepciones/:id', verificarToken, verificarRol('barbero'), HorarioController.deleteExcepcion);
+router.get('/mis-excepciones', verificarToken, verificarRol('barbero'), HorarioController.getMisExcepciones);
 
 export default router;

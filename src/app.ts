@@ -20,6 +20,7 @@ import resenaRoutes from './routes/resena.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import gastoRoutes from './routes/gasto.routes';
 import horarioRoutes from './routes/horario.routes';
+import statsRoutes from './routes/stats.routes';
 
 const app: Application = express();
 
@@ -41,6 +42,7 @@ app.use('/api/resenas', resenaRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/gastos', gastoRoutes);
 app.use('/api/horarios', horarioRoutes);
+app.use('/api/stats', statsRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({

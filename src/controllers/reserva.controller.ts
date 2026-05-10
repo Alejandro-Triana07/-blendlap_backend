@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { ReservaService } from '../services/reserva.service';
 import { ReservaModel } from '../models/reserva.model';
+import { pool } from '../database/connection';
+import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export class ReservaController {
 
@@ -97,24 +99,91 @@ export class ReservaController {
         }
     }
     static async getCitasHoy(req: Request, res: Response): Promise<void> {
-  try {
-    const id_barbero = req.usuario!.id_usuario;
-    const hoy = new Date().toISOString().split('T')[0];
-    const reservas = await ReservaModel.findByBarberoFecha(id_barbero, hoy);
-    res.status(200).json({ ok: true, data: reservas });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, mensaje: error.message });
-  }
-}
+        try {
+            const id_barbero = req.usuario!.id_usuario;
+            const hoy = new Date().toISOString().split('T')[0];
+            const reservas = await ReservaModel.findByBarberoFecha(id_barbero, hoy);
+            res.status(200).json({ ok: true, data: reservas });
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
 
-static async getProximas(req: Request, res: Response): Promise<void> {
-  try {
-    const id_barbero = req.usuario!.id_usuario;
-    const hoy = new Date().toISOString().split('T')[0];
-    const reservas = await ReservaModel.findProximasBarbero(id_barbero, hoy);
-    res.status(200).json({ ok: true, data: reservas });
-  } catch (error: any) {
-    res.status(500).json({ ok: false, mensaje: error.message });
-  }
-}
+    static async getProximas(req: Request, res: Response): Promise<void> {
+        try {
+            const id_barbero = req.usuario!.id_usuario;
+            const hoy = new Date().toISOString().split('T')[0];
+            const reservas = await ReservaModel.findProximasBarbero(id_barbero, hoy);
+            res.status(200).json({ ok: true, data: reservas });
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
+    static async registrarPresencial(req: Request, res: Response): Promise<void> {
+        try {
+            const id_barbero = req.usuario!.id_usuario;
+            const { nombre, apellido, id_servicio, fecha, hora } = req.body;
+
+            if (!nombre || !apellido || !id_servicio || !fecha || !hora) {
+                res.status(400).json({ ok: false, mensaje: 'Todos los campos son requeridos' });
+                return;
+            }
+
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+
+                // 1. Crear cliente temporal
+                const correo = `presencial_${Date.now()}@blendlap.local`;
+                const bcrypt = require('bcryptjs');
+                const hash = await bcrypt.hash('temporal123', 10);
+
+                const [clienteResult] = await connection.execute<ResultSetHeader>(
+                    `INSERT INTO usuario_rol (nombre, apellido, correo_electronico, contrasena, rol, estado)
+         VALUES (?, ?, ?, ?, 'cliente', 'activo')`,
+                    [nombre, apellido, correo, hash]
+                );
+                const id_cliente = clienteResult.insertId;
+
+                // 2. Crear reserva
+                const [reservaResult] = await connection.execute<ResultSetHeader>(
+                    `INSERT INTO reserva (id_cliente, id_barbero, fecha, hora, estado)
+         VALUES (?, ?, ?, ?, 'completada')`,
+                    [id_cliente, id_barbero, fecha, hora]
+                );
+                const id_reserva = reservaResult.insertId;
+
+                // 3. Obtener precio del servicio
+                const [servicios] = await connection.execute<RowDataPacket[]>(
+                    `SELECT precio FROM servicio WHERE id_servicio = ?`,
+                    [id_servicio]
+                );
+                const precio = servicios[0]?.precio || 0;
+
+                // 4. Crear reserva_servicio
+                await connection.execute(
+                    `INSERT INTO reserva_servicio (id_reserva, id_servicio, precio_cobrado)
+         VALUES (?, ?, ?)`,
+                    [id_reserva, id_servicio, precio]
+                );
+
+                await connection.commit();
+
+                res.status(201).json({
+                    ok: true,
+                    mensaje: 'Cita registrada correctamente',
+                    data: { id_reserva, id_cliente }
+                });
+
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
 }
