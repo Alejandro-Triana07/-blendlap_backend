@@ -11,7 +11,7 @@ router.post('/movimiento', verificarToken, verificarRol('admin'), ProductoContro
 router.get('/:id/movimientos', verificarToken, verificarRol('admin'), ProductoController.getMovimientos);
 router.get('/:id', verificarToken, ProductoController.getById);
 router.post('/', verificarToken, verificarRol('admin'), ProductoController.create);
-router.put('/:id', verificarToken, verificarRol('admin'), ProductoController.update);
+router.put('/:id',  verificarToken, verificarRol('admin'), ProductoController.update);
 router.delete('/:id', verificarToken, verificarRol('admin'), ProductoController.delete);
 
 export default router;
