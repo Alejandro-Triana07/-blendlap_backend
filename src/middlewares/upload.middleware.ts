@@ -72,3 +72,7 @@ export const uploadBarbero = multer({
   storage: crearStorage('barberos'),
   ...opciones
 });
+export const uploadProducto = multer({
+  storage: crearStorage('productos'),
+  ...opciones
+});

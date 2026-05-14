@@ -33,31 +33,46 @@ export class ProductoModel {
   }
 
   static async create(data: ICrearProducto): Promise<number> {
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO producto (codigo_producto, nombre_producto, descripcion, precio, stock)
-       VALUES (?, ?, ?, ?, ?)`,
-      [data.codigo_producto, data.nombre_producto, data.descripcion || null, data.precio, data.stock || 0]
-    );
-    return result.insertId;
-  }
+  const [result] = await pool.execute<ResultSetHeader>(
+    `INSERT INTO producto
+      (codigo_producto, nombre_producto, descripcion, precio, stock, categoria, talla, imagen)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.codigo_producto,
+      data.nombre_producto,
+      data.descripcion || null,
+      Number(data.precio),
+      Number(data.stock) || 0,
+      data.categoria || 'barberia',
+      data.talla || null,
+      data.imagen || null
+    ]
+  );
+  return result.insertId;
+}
 
   static async update(id: number, data: IActualizarProducto): Promise<boolean> {
-    const campos: string[] = [];
-    const valores: any[] = [];
+  const campos: string[] = [];
+  const valores: any[] = [];
 
-    if (data.codigo_producto !== undefined) { campos.push('codigo_producto = ?'); valores.push(data.codigo_producto); }
-    if (data.nombre_producto !== undefined) { campos.push('nombre_producto = ?'); valores.push(data.nombre_producto); }
-    if (data.descripcion !== undefined) { campos.push('descripcion = ?'); valores.push(data.descripcion); }
-    if (data.precio !== undefined) { campos.push('precio = ?'); valores.push(data.precio); }
+  if (data.codigo_producto !== undefined) { campos.push('codigo_producto = ?'); valores.push(data.codigo_producto); }
+  if (data.nombre_producto !== undefined) { campos.push('nombre_producto = ?'); valores.push(data.nombre_producto); }
+  if (data.descripcion     !== undefined) { campos.push('descripcion = ?');     valores.push(data.descripcion); }
+  if (data.precio          !== undefined) { campos.push('precio = ?');          valores.push(Number(data.precio)); }
+  if (data.stock           !== undefined) { campos.push('stock = ?');           valores.push(Number(data.stock)); }
+  if (data.categoria       !== undefined) { campos.push('categoria = ?');       valores.push(data.categoria); }
+  if (data.talla           !== undefined) { campos.push('talla = ?');           valores.push(data.talla || null); }
+  if (data.imagen          !== undefined) { campos.push('imagen = ?');          valores.push(data.imagen); }
 
-    if (campos.length === 0) return false;
-    valores.push(id);
+  if (campos.length === 0) return false;
+  valores.push(id);
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      `UPDATE producto SET ${campos.join(', ')} WHERE id_producto = ?`, valores
-    );
-    return result.affectedRows > 0;
-  }
+  const [result] = await pool.execute<ResultSetHeader>(
+    `UPDATE producto SET ${campos.join(', ')} WHERE id_producto = ?`,
+    valores
+  );
+  return result.affectedRows > 0;
+}
 
   static async delete(id: number): Promise<boolean> {
     const [result] = await pool.execute<ResultSetHeader>(

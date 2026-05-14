@@ -21,7 +21,7 @@ import dashboardRoutes from './routes/dashboard.routes';
 import gastoRoutes from './routes/gasto.routes';
 import horarioRoutes from './routes/horario.routes';
 import statsRoutes from './routes/stats.routes';
-
+import creditoRoutes from './routes/credito.routes';
 const app: Application = express();
 
 app.use(cors());
@@ -43,6 +43,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/gastos', gastoRoutes);
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/creditos', creditoRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({

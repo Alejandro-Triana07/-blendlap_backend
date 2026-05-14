@@ -56,19 +56,24 @@ export class VentaModel {
             const id_venta = result.insertId;
 
             // 3. Insertar detalles
+            // 3. Insertar detalles
             for (const detalle of data.detalles) {
+                const idProducto = detalle.id_producto || null;
+
                 await connection.execute(
                     `INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, porcentaje_barbero)
-           VALUES (?, ?, ?, ?, ?)`,
-                    [id_venta, detalle.id_producto, detalle.cantidad, detalle.precio_unitario, detalle.porcentaje_barbero || null]
+         VALUES (?, ?, ?, ?, ?)`,
+                    [id_venta, idProducto, detalle.cantidad, detalle.precio_unitario, detalle.porcentaje_barbero || null]
                 );
 
-                // 4. Registrar salida de inventario (el trigger actualiza el stock)
-                await connection.execute(
-                    `INSERT INTO inventario_movimiento (id_producto, id_usuario, tipo_movimiento, cantidad)
-           VALUES (?, ?, 'Salida', ?)`,
-                    [detalle.id_producto, id_cajero, detalle.cantidad]
-                );
+                // 4. Solo registrar movimiento de inventario si es un producto físico
+                if (idProducto) {
+                    await connection.execute(
+                        `INSERT INTO inventario_movimiento (id_producto, id_usuario, tipo_movimiento, cantidad)
+             VALUES (?, ?, 'Salida', ?)`,
+                        [idProducto, id_cajero, detalle.cantidad]
+                    );
+                }
             }
 
             await connection.commit();

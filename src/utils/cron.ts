@@ -3,6 +3,7 @@ import { pool } from '../database/connection';
 import { RowDataPacket } from 'mysql2';
 import { ReservaService } from '../services/reserva.service';
 import logger from './logger';
+import { CreditoService } from '../services/credito.service';
 
 export const iniciarCronJobs = () => {
 
@@ -30,5 +31,15 @@ export const iniciarCronJobs = () => {
     }
   });
 
+
   logger.info('Cron jobs iniciados');
 };
+// Créditos vencidos — cada día a las 8am
+cron.schedule('0 8 * * *', async () => {
+  try {
+    await CreditoService.actualizarVencidos();
+    console.log('[CRON] Créditos vencidos actualizados');
+  } catch (error) {
+    console.error('[CRON] Error actualizando vencidos:', error);
+  }
+});
