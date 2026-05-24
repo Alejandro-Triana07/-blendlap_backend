@@ -23,4 +23,5 @@ export interface IActualizarServicio {
   duracion?: number;
   imagen?: string;
   categoria?: string;
+  estado?: 'activo' | 'inactivo';
 }

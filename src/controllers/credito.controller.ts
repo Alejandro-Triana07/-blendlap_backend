@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { CreditoService } from '../services/credito.service';
-
+import { CreditoModel } from '../models/credito.model';
 export class CreditoController {
 
   static async getAll(req: Request, res: Response): Promise<void> {
@@ -74,4 +74,13 @@ export class CreditoController {
       res.status(400).json({ ok: false, mensaje: error.message });
     }
   }
+  static async getMisCreditos(req: Request, res: Response): Promise<void> {
+  try {
+    const id_cliente = (req as any).usuario.id_usuario;
+    const creditos = await CreditoModel.findByCliente(id_cliente);
+    res.json({ ok: true, data: creditos });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, mensaje: error.message });
+  }
+}
 }

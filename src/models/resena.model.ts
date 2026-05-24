@@ -4,6 +4,13 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export class ResenaModel {
 
+  static async getAll(): Promise<any[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      'SELECT * FROM resena ORDER BY fecha DESC'
+    );
+    return rows as any[];
+  }
+
   static async findByBarbero(id_barbero: number): Promise<any[]> {
     const [rows] = await pool.execute<RowDataPacket[]>(
       `SELECT re.*,

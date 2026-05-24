@@ -172,4 +172,73 @@ export class DashboardController {
             res.status(500).json({ ok: false, mensaje: error.message });
         }
     }
+    static async getAgendaHoy(req: Request, res: Response): Promise<void> {
+        try {
+            const [agenda] = await pool.execute<RowDataPacket[]>(
+                `SELECT r.id_reserva, r.hora, r.estado,
+        CONCAT(c.nombre, ' ', c.apellido) AS nombre_cliente,
+        c.foto AS foto_cliente,
+        CONCAT(b.nombre, ' ', b.apellido) AS nombre_barbero,
+        b.foto AS foto_barbero,
+        s.nombre_servicio, s.precio, s.duracion
+       FROM reserva r
+       JOIN usuario_rol c ON c.id_usuario = r.id_cliente
+       JOIN usuario_rol b ON b.id_usuario = r.id_barbero
+       JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+       JOIN servicio s ON s.id_servicio = rs.id_servicio
+       WHERE DATE(r.fecha) = CURDATE()
+       AND r.estado != 'cancelada'
+       ORDER BY r.hora ASC
+       LIMIT 8`
+            );
+            res.status(200).json({ ok: true, data: agenda });
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
+
+    static async getSparklines(req: Request, res: Response): Promise<void> {
+        try {
+            // Ingresos últimos 7 días
+            const [ingresosWeek] = await pool.execute<RowDataPacket[]>(
+                `SELECT DATE_FORMAT(r.fecha,'%d') AS dia,
+        COALESCE(SUM(s.precio),0) AS total
+       FROM reserva r
+       JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+       JOIN servicio s ON s.id_servicio = rs.id_servicio
+       WHERE r.fecha >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       AND r.estado = 'completada'
+       GROUP BY r.fecha ORDER BY r.fecha ASC`
+            );
+
+            // Citas últimos 7 días
+            const [citasWeek] = await pool.execute<RowDataPacket[]>(
+                `SELECT DATE_FORMAT(fecha,'%d') AS dia, COUNT(*) AS total
+       FROM reserva
+       WHERE fecha >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+       AND estado != 'cancelada'
+       GROUP BY fecha ORDER BY fecha ASC`
+            );
+
+            // Top servicios este mes
+            const [topServicios] = await pool.execute<RowDataPacket[]>(
+                `SELECT s.nombre_servicio, COUNT(*) AS total
+       FROM reserva_servicio rs
+       JOIN servicio s ON s.id_servicio = rs.id_servicio
+       JOIN reserva r ON r.id_reserva = rs.id_reserva
+       WHERE MONTH(r.fecha) = MONTH(CURDATE())
+       AND YEAR(r.fecha) = YEAR(CURDATE())
+       AND r.estado != 'cancelada'
+       GROUP BY rs.id_servicio
+       ORDER BY total DESC LIMIT 5`
+            );
+
+            res.status(200).json({
+                ok: true,
+                data: { ingresosWeek, citasWeek, topServicios }
+            });
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
 }

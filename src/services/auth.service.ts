@@ -4,6 +4,7 @@ import { AuthModel } from '../models/auth.model';
 import { ILoginPayload, IRegistroPayload, IJwtPayload } from '../interfaces/auth.interface';
 import { pool } from '../database/connection';
 import { OAuth2Client } from 'google-auth-library';
+import { EmailService } from './email.service';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
@@ -115,13 +116,13 @@ export class AuthService {
 
         await AuthModel.guardarCodigo(usuario.id_usuario, codigo, expiracion);
 
-        // En producción aquí enviarías el correo/SMS
-        // Por ahora retornamos el código directamente
-        return {
-            mensaje: 'Código de recuperación generado',
-            codigo, // ← en producción esto NO se retorna, se envía por correo
-            expiracion
-        };
+        await EmailService.enviarCodigoRecuperacion(
+            usuario.correo_electronico,
+            usuario.nombre,
+            codigo
+        );
+
+        return { mensaje: 'Código de verificación enviado a tu correo electrónico' };
     }
 
     // Resetear contraseña con código

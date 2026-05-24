@@ -4,10 +4,9 @@ import { ICrearServicio, IActualizarServicio } from '../interfaces/servicio.inte
 export class ServicioService {
 
   // Obtener todos
-  static async getAll() {
-    const servicios = await ServicioModel.findAll();
-    return servicios;
-  }
+  static async getAll(soloActivos = false) {
+  return await ServicioModel.findAll(soloActivos);
+}
 
   // Obtener por ID
   static async getById(id: number) {

@@ -34,4 +34,7 @@ export class GastoService {
     await GastoModel.delete(id);
     return { mensaje: 'Gasto eliminado correctamente' };
   }
+  static async getEstadisticas(filtros?: { desde?: string; hasta?: string }) {
+  return await GastoModel.getEstadisticas(filtros);
+}
 }

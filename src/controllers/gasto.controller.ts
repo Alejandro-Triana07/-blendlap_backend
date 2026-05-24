@@ -41,4 +41,16 @@ export class GastoController {
       res.status(404).json({ ok: false, mensaje: error.message });
     }
   }
+  static async getEstadisticas(req: Request, res: Response): Promise<void> {
+  try {
+    const { desde, hasta } = req.query;
+    const data = await GastoService.getEstadisticas({
+      desde: desde as string,
+      hasta: hasta as string
+    });
+    res.status(200).json({ ok: true, data });
+  } catch (error: any) {
+    res.status(500).json({ ok: false, mensaje: error.message });
+  }
+}
 }

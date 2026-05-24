@@ -4,12 +4,13 @@ import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
 export class ServicioModel {
 
-  static async findAll(): Promise<IServicio[]> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      'SELECT * FROM servicio ORDER BY categoria ASC, precio DESC'
-    );
-    return rows as IServicio[];
-  }
+  static async findAll(soloActivos = false): Promise<IServicio[]> {
+  const where = soloActivos ? "WHERE estado = 'activo'" : '';
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT * FROM servicio ${where} ORDER BY categoria ASC, precio DESC`
+  );
+  return rows as IServicio[];
+}
 
   static async findById(id: number): Promise<IServicio | null> {
     const [rows] = await pool.execute<RowDataPacket[]>(
@@ -38,7 +39,7 @@ export class ServicioModel {
     if (data.duracion !== undefined) { campos.push('duracion = ?'); valores.push(data.duracion); }
     if (data.imagen !== undefined) { campos.push('imagen = ?'); valores.push(data.imagen); }
     if (data.categoria !== undefined) { campos.push('categoria = ?'); valores.push(data.categoria); }
-
+    if (data.estado !== undefined) { campos.push('estado = ?'); valores.push(data.estado); }
     if (campos.length === 0) return false;
 
     valores.push(id);

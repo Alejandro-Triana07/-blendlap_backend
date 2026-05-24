@@ -3,18 +3,17 @@ export type EstadoCredito = 'pendiente' | 'activo' | 'pagado' | 'vencido';
 export type MetodoPago    = 'efectivo' | 'nequi' | 'otro';
 
 export interface ICredito {
-  id_credito?:       number;
+  id_credito:        number;
   id_cliente?:       number | null;
   nombre_cliente:    string;
   telefono_cliente:  string;
   monto_total:       number;
   saldo_pendiente:   number;
-  plazo:             PlazoCredito;
-  fecha_vencimiento?: string;
-  estado?:           EstadoCredito;
-  id_admin?:         number;
+  plazo:             string;
+  fecha_vencimiento: string;
+  estado:            'pendiente' | 'activo' | 'pagado' | 'vencido';
   observaciones?:    string;
-  fecha_creacion?:   string;
+  fecha_creacion:    string;
 }
 
 export interface ICreditoProducto {

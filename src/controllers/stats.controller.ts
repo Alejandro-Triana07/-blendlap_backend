@@ -69,29 +69,49 @@ export class StatsController {
         [id_barbero]
       );
 
-      const [ultimos6Meses] = await pool.execute<RowDataPacket[]>(
-        `SELECT DATE_FORMAT(r.fecha, '%Y-%m') as mes,
-          COUNT(DISTINCT r.id_reserva) as citas,
-          COALESCE(SUM(rs.precio_cobrado), 0) as ingresos
-         FROM reserva r
-         LEFT JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
-         WHERE r.id_barbero = ? AND r.estado = 'completada'
-         AND r.fecha >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-         GROUP BY DATE_FORMAT(r.fecha, '%Y-%m')
-         ORDER BY mes ASC`,
-        [id_barbero]
-      );
-
       const [distribucionServicios] = await pool.execute<RowDataPacket[]>(
         `SELECT s.nombre_servicio, COUNT(*) as total
          FROM reserva_servicio rs
          JOIN servicio s ON s.id_servicio = rs.id_servicio
          JOIN reserva r ON r.id_reserva = rs.id_reserva
          WHERE r.id_barbero = ? AND r.estado = 'completada'
+           AND MONTH(r.fecha) = ? AND YEAR(r.fecha) = ?
          GROUP BY rs.id_servicio
-         ORDER BY total DESC LIMIT 5`,
+         ORDER BY total DESC LIMIT 8`,
+        [id_barbero, mes, año]
+      );
+
+      const [topClientes] = await pool.execute<RowDataPacket[]>(
+        `SELECT u.nombre, u.apellido,
+           COUNT(DISTINCT r.id_reserva) as citas,
+           COALESCE(SUM(rs.precio_cobrado), 0) as ingresos
+         FROM reserva r
+         JOIN usuario_rol u ON u.id_usuario = r.id_cliente
+         LEFT JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+         WHERE r.id_barbero = ? AND r.estado = 'completada'
+         GROUP BY r.id_cliente, u.nombre, u.apellido
+         ORDER BY citas DESC LIMIT 5`,
         [id_barbero]
       );
+
+      // Desglose diario del mes actual
+      const [citasPorDiaMes] = await pool.execute<RowDataPacket[]>(
+        `SELECT
+           DAY(r.fecha) as dia,
+           COUNT(DISTINCT r.id_reserva) as citas,
+           COALESCE(SUM(rs.precio_cobrado), 0) as ingresos
+         FROM reserva r
+         LEFT JOIN reserva_servicio rs ON rs.id_reserva = r.id_reserva
+         WHERE r.id_barbero = ? AND r.estado = 'completada'
+           AND MONTH(r.fecha) = ? AND YEAR(r.fecha) = ?
+         GROUP BY DAY(r.fecha)
+         ORDER BY dia ASC`,
+        [id_barbero, mes, año]
+      );
+
+      console.log('[TOP_CLIENTES]', JSON.stringify(topClientes));
+      console.log('[DIST_SERVICIOS]', JSON.stringify(distribucionServicios));
+      console.log('[CITAS_DIA]', JSON.stringify(citasPorDiaMes));
 
       const comision = barbero[0]?.comision || 40;
       const ingresosMes = parseFloat(citasMes[0]?.ingresos || 0);
@@ -112,8 +132,20 @@ export class StatsController {
           topServicio: topServicio[0]?.nombre_servicio || '—',
           experiencia: barbero[0]?.experiencia || 0,
           comision,
-          ultimos6Meses,
-          distribucionServicios
+          topClientes: (topClientes as RowDataPacket[]).map(r => ({
+            nombre_cliente: `${r.nombre} ${r.apellido}`,
+            citas: +r.citas,
+            ingresos: +r.ingresos
+          })),
+          distribucionServicios: (distribucionServicios as RowDataPacket[]).map(r => ({
+            nombre_servicio: r.nombre_servicio,
+            total: +r.total
+          })),
+          citasPorDiaMes: (citasPorDiaMes as RowDataPacket[]).map(r => ({
+            dia: +r.dia,
+            citas: +r.citas,
+            ingresos: +r.ingresos
+          }))
         }
       });
     } catch (error: any) {

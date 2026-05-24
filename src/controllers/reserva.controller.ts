@@ -4,6 +4,15 @@ import { ReservaModel } from '../models/reserva.model';
 import { pool } from '../database/connection';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
 
+const getFechaColombia = (): string => {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+};
+
 export class ReservaController {
 
     // GET /api/reservas → solo admin
@@ -101,7 +110,7 @@ export class ReservaController {
     static async getCitasHoy(req: Request, res: Response): Promise<void> {
         try {
             const id_barbero = req.usuario!.id_usuario;
-            const hoy = new Date().toISOString().split('T')[0];
+            const hoy = getFechaColombia();
             const reservas = await ReservaModel.findByBarberoFecha(id_barbero, hoy);
             res.status(200).json({ ok: true, data: reservas });
         } catch (error: any) {
@@ -112,13 +121,14 @@ export class ReservaController {
     static async getProximas(req: Request, res: Response): Promise<void> {
         try {
             const id_barbero = req.usuario!.id_usuario;
-            const hoy = new Date().toISOString().split('T')[0];
+            const hoy = getFechaColombia();
             const reservas = await ReservaModel.findProximasBarbero(id_barbero, hoy);
             res.status(200).json({ ok: true, data: reservas });
         } catch (error: any) {
             res.status(500).json({ ok: false, mensaje: error.message });
         }
     }
+
     static async registrarPresencial(req: Request, res: Response): Promise<void> {
         try {
             const id_barbero = req.usuario!.id_usuario;

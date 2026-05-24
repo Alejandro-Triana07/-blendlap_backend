@@ -61,6 +61,10 @@ export class ReservaService {
     const reserva = await ReservaModel.findById(id);
     if (!reserva) throw new Error('Reserva no encontrada');
 
+    if (usuarioRol === 'barbero' && reserva.id_barbero !== usuarioId) {
+      throw new Error('No puedes modificar una reserva que no pertenece a tu agenda');
+    }
+
     if (usuarioRol === 'cliente') {
       if (reserva.id_cliente !== usuarioId) {
         throw new Error('No puedes modificar una reserva que no es tuya');
@@ -83,7 +87,7 @@ export class ReservaService {
 
     await ReservaModel.update(id, data);
 
-    if (data.estado === 'completada') {
+    if (data.estado === 'completada' && reserva.estado !== 'completada') {
       await ReservaService.crearVentaAutomatica(id, reserva.id_barbero);
     }
 
@@ -103,7 +107,20 @@ export class ReservaService {
         [id_reserva]
       );
 
-      if (servicios.length === 0) return;
+      if (servicios.length === 0) {
+        await connection.commit();
+        return;
+      }
+
+      const [ventasExistentes] = await connection.execute<RowDataPacket[]>(
+        `SELECT id_venta FROM venta WHERE id_reserva = ? LIMIT 1`,
+        [id_reserva]
+      );
+
+      if (ventasExistentes.length > 0) {
+        await connection.commit();
+        return;
+      }
 
       const total = servicios.reduce(
         (sum: number, s: any) => sum + parseFloat(s.precio_cobrado), 0
@@ -119,9 +136,9 @@ export class ReservaService {
       for (const servicio of servicios) {
         const precio = parseFloat(servicio.precio_cobrado);
         await connection.execute(
-          `INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, porcentaje_barbero)
-           VALUES (?, ?, 1, ?, 60)`,
-          [id_venta, servicio.id_servicio, precio]
+          `INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, subtotal, porcentaje_barbero)
+           VALUES (?, NULL, 1, ?, ?, 60)`,
+          [id_venta, precio, precio]
         );
       }
 

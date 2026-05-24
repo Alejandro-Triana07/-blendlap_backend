@@ -1,6 +1,7 @@
 import { pool } from '../database/connection';
 import { ResultSetHeader, RowDataPacket } from 'mysql2';
-import { ICrearCredito, IRegistrarAbono, PlazoCredito } from '../interfaces/credito.interface';
+import { ICrearCredito, IRegistrarAbono, PlazoCredito, ICredito } from '../interfaces/credito.interface';
+
 
 export class CreditoModel {
 
@@ -261,4 +262,11 @@ export class CreditoModel {
        AND saldo_pendiente > 0`
     );
   }
+  static async findByCliente(id_cliente: number): Promise<ICredito[]> {
+  const [rows] = await pool.execute<RowDataPacket[]>(
+    `SELECT * FROM credito WHERE id_cliente = ? ORDER BY fecha_creacion DESC`,
+    [id_cliente]
+  );
+  return rows as ICredito[];
+}
 }

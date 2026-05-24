@@ -59,11 +59,12 @@ export class VentaModel {
             // 3. Insertar detalles
             for (const detalle of data.detalles) {
                 const idProducto = detalle.id_producto || null;
+                const subtotal = detalle.cantidad * detalle.precio_unitario;
 
                 await connection.execute(
-                    `INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, porcentaje_barbero)
-         VALUES (?, ?, ?, ?, ?)`,
-                    [id_venta, idProducto, detalle.cantidad, detalle.precio_unitario, detalle.porcentaje_barbero || null]
+                    `INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario, subtotal, porcentaje_barbero)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+                    [id_venta, idProducto, detalle.cantidad, detalle.precio_unitario, subtotal, detalle.porcentaje_barbero || null]
                 );
 
                 // 4. Solo registrar movimiento de inventario si es un producto físico
