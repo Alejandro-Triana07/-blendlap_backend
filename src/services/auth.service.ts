@@ -10,6 +10,22 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Registros pendientes de verificación por correo (en memoria)
+interface PendingRegistro {
+  payload: IRegistroPayload;
+  codigo: string;
+  expiracion: Date;
+}
+const pendingRegistrations = new Map<string, PendingRegistro>();
+
+// Limpiar entradas expiradas cada 30 minutos
+setInterval(() => {
+  const now = new Date();
+  for (const [key, val] of pendingRegistrations.entries()) {
+    if (val.expiracion < now) pendingRegistrations.delete(key);
+  }
+}, 30 * 60 * 1000);
+
 export class AuthService {
 
     // LOGIN
@@ -141,6 +157,46 @@ export class AuthService {
         await AuthModel.marcarCodigoUsado(correo_electronico, codigo);
 
         return { mensaje: 'Contraseña actualizada correctamente' };
+    }
+
+    // Paso 1 del registro: guardar datos en memoria y enviar código de 4 dígitos
+    static async solicitarVerificacionRegistro(payload: IRegistroPayload) {
+        const existe = await AuthModel.findByCorreo(payload.correo_electronico);
+        if (existe) throw new Error('El correo ya está registrado');
+
+        const codigo = Math.floor(1000 + Math.random() * 9000).toString();
+        const expiracion = new Date();
+        expiracion.setMinutes(expiracion.getMinutes() + 15);
+
+        pendingRegistrations.set(payload.correo_electronico, { payload, codigo, expiracion });
+
+        await EmailService.enviarCodigoRegistro(
+            payload.correo_electronico,
+            payload.nombre,
+            codigo
+        );
+
+        return { mensaje: 'Código de verificación enviado a tu correo electrónico' };
+    }
+
+    // Paso 2 del registro: verificar código y crear el usuario
+    static async completarRegistro(correo_electronico: string, codigo: string) {
+        const pending = pendingRegistrations.get(correo_electronico);
+
+        if (!pending) {
+            throw new Error('No hay una solicitud de registro pendiente para este correo');
+        }
+        if (pending.codigo !== codigo) {
+            throw new Error('Código de verificación incorrecto');
+        }
+        if (pending.expiracion < new Date()) {
+            pendingRegistrations.delete(correo_electronico);
+            throw new Error('El código de verificación ha expirado. Solicita uno nuevo');
+        }
+
+        pendingRegistrations.delete(correo_electronico);
+
+        return await AuthService.registro(pending.payload);
     }
 
     static async loginConGoogle(token: string) {

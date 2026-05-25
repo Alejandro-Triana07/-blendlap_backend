@@ -1,6 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
-
+import { v2 as cloudinary } from 'cloudinary';
 import express, { Application } from 'express';
 import cors from 'cors';
 import { testConnection } from './database/connection';
@@ -22,6 +21,16 @@ import gastoRoutes from './routes/gasto.routes';
 import horarioRoutes from './routes/horario.routes';
 import statsRoutes from './routes/stats.routes';
 import creditoRoutes from './routes/credito.routes';
+import pagoRoutes from './routes/pago.routes';
+import { PagoModel } from './models/pago.model';
+
+dotenv.config();
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
 const app: Application = express();
 
 app.use(cors());
@@ -44,6 +53,7 @@ app.use('/api/gastos', gastoRoutes);
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/creditos', creditoRoutes);
+app.use('/api/pagos', pagoRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -52,11 +62,11 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
-
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
   await testConnection();
+  await PagoModel.inicializarTabla();
   iniciarCronJobs();
   logger.info(`Servidor corriendo en http://localhost:${PORT}`);
   logger.info(`Ambiente: ${process.env.NODE_ENV}`);

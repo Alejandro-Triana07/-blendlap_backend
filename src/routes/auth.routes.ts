@@ -6,6 +6,8 @@ const router = Router();
 
 router.post('/login', AuthController.login);
 router.post('/registro', AuthController.registro);
+router.post('/solicitar-verificacion-registro', AuthController.solicitarVerificacionRegistro);
+router.post('/completar-registro', AuthController.completarRegistro);
 router.get('/perfil', verificarToken, AuthController.perfil);
 router.put('/cambiar-password', AuthController.cambiarPassword);
 router.post('/solicitar-recuperacion', AuthController.solicitarRecuperacion);
