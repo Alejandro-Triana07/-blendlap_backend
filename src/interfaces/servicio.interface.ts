@@ -5,6 +5,8 @@ export interface IServicio {
   precio: number;
   duracion: number;
   imagen?: string;
+  categoria?: string | null;
+  estado?: 'activo' | 'inactivo';
 }
 
 export interface ICrearServicio {

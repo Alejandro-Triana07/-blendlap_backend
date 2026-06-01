@@ -8,6 +8,7 @@ import logger from './utils/logger';
 import authRoutes from './routes/auth.routes';
 import servicioRoutes from './routes/servicio.routes';
 import reservaRoutes from './routes/reserva.routes';
+import chatRoutes from './routes/chat.routes';
 import usuarioRoutes from './routes/usuario.routes';
 import clienteRoutes from './routes/cliente.routes';
 import turnoRoutes from './routes/turno.routes';
@@ -23,6 +24,7 @@ import statsRoutes from './routes/stats.routes';
 import creditoRoutes from './routes/credito.routes';
 import pagoRoutes from './routes/pago.routes';
 import { PagoModel } from './models/pago.model';
+import { EmailService } from './services/email.service';
 
 dotenv.config();
 cloudinary.config({
@@ -40,6 +42,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/servicios', servicioRoutes);
 app.use('/api/reservas', reservaRoutes);
+app.use('/api/chat', chatRoutes);
 app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/turnos', turnoRoutes);
@@ -62,6 +65,31 @@ app.get('/api/health', (_req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+app.get('/api/health/email', async (_req, res) => {
+  const configured = EmailService.isConfigured();
+  const verified = configured ? await EmailService.verify() : false;
+  res.json({
+    configured,
+    verified,
+    from: process.env.EMAIL_FROM || null,
+    user: process.env.EMAIL_USER ? 'set' : 'missing',
+  });
+});
+
+app.post('/api/health/test-email', async (req, res) => {
+  try {
+    const { to } = req.body as { to?: string };
+    if (!to || typeof to !== 'string') {
+      res.status(400).json({ ok: false, mensaje: 'to es requerido' });
+      return;
+    }
+    await EmailService.enviarPrueba(to);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, mensaje: err?.message || 'Error enviando correo' });
+  }
+});
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, async () => {
@@ -70,6 +98,13 @@ app.listen(PORT, async () => {
   iniciarCronJobs();
   logger.info(`Servidor corriendo en http://localhost:${PORT}`);
   logger.info(`Ambiente: ${process.env.NODE_ENV}`);
+  if (EmailService.isConfigured()) {
+    await EmailService.verify();
+  } else {
+    logger.warn(
+      'Correo: NO configurado — registro y recuperación fallarán hasta definir EMAIL_USER y EMAIL_PASS en .env'
+    );
+  }
 });
 
 export default app;

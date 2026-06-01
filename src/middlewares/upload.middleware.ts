@@ -1,5 +1,6 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 
 // ─────────────────────────────────────────────────────────────
 // STORAGE DINÁMICO
@@ -8,7 +9,9 @@ import path from 'path';
 const crearStorage = (carpeta: string) =>
   multer.diskStorage({
     destination: (req, file, cb) => {
-      cb(null, `public/images/${carpeta}`);
+      const dir = `public/images/${carpeta}`;
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
     },
 
     filename: (req, file, cb) => {
