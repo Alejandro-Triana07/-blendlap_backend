@@ -6,6 +6,7 @@ const router = Router();
 
 // Rutas públicas
 router.get('/disponibilidad', ReservaController.getDisponibilidad);
+router.get('/ocupacion-barbero', ReservaController.getOcupacionBarbero);
 
 // Rutas barbero — ANTES de /:id
 router.get('/barbero/hoy', verificarToken, verificarRol('barbero'), ReservaController.getCitasHoy);

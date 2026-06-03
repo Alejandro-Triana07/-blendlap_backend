@@ -447,7 +447,15 @@ function buildProductCatalogCards(productos: any[]): ChatCatalogCard[] {
 }
 
 function buildServiceCatalogCards(servicios: any[]): ChatCatalogCard[] {
-  return servicios
+  const sorted = [...servicios].sort((a, b) => {
+    const catA = classifyServiceCategory(a);
+    const catB = classifyServiceCategory(b);
+    if (catA === 'premium' && catB === 'clasico') return -1;
+    if (catA === 'clasico' && catB === 'premium') return 1;
+    return 0;
+  });
+
+  return sorted
     .filter((s) => String(s?.estado || 'activo') === 'activo')
     .slice(0, 12)
     .map((s) => {
@@ -548,6 +556,57 @@ function parseFechaInput(text: string): string | null {
     return toIsoDate(d);
   }
 
+  // 1. Días de la semana en español
+  const DIAS_MAP: Record<string, number> = {
+    domingo: 0, dom: 0,
+    lunes: 1, lun: 1,
+    martes: 2, mar: 2,
+    miercoles: 3, mie: 3,
+    jueves: 4, jue: 4,
+    viernes: 5, vie: 5,
+    sabado: 6, sab: 6
+  };
+
+  for (const dayName of Object.keys(DIAS_MAP)) {
+    if (new RegExp(`\\b${dayName}\\b`, 'i').test(t)) {
+      const targetDay = DIAS_MAP[dayName];
+      let daysToAdd = targetDay - today.getDay();
+      if (daysToAdd <= 0) {
+        daysToAdd += 7; // Si ya pasó en la semana actual o es hoy, asumimos la próxima semana
+      }
+      const d = new Date(today);
+      d.setDate(today.getDate() + daysToAdd);
+      return toIsoDate(d);
+    }
+  }
+
+  // 2. Formato como "28 de mayo", "28 de mayo de 2026", "28 mayo"
+  const MESES_MAP: Record<string, number> = {
+    enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5,
+    julio: 6, agosto: 7, septiembre: 8, octubre: 9, noviembre: 10, diciembre: 11
+  };
+
+  const regexSpan = /\b(\d{1,2})\b\s*(?:de\s+)?(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\s*(?:de\s+)?(\d{4})?/i;
+  const matchSpan = t.match(regexSpan);
+  if (matchSpan) {
+    const day = parseInt(matchSpan[1]);
+    const monthName = matchSpan[2];
+    const monthIndex = MESES_MAP[monthName];
+    const yearPart = matchSpan[3];
+    let year = yearPart ? parseInt(yearPart) : today.getFullYear();
+
+    let computedDate = new Date(year, monthIndex, day);
+    if (!yearPart && computedDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+      year += 1;
+      computedDate = new Date(year, monthIndex, day);
+    }
+
+    const y = computedDate.getFullYear();
+    const m = String(computedDate.getMonth() + 1).padStart(2, '0');
+    const d = String(computedDate.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
   const iso = raw.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
   if (iso) return iso[0];
 
@@ -563,6 +622,7 @@ function parseFechaInput(text: string): string | null {
 
 function parseHoraInput(text: string): string | null {
   const t = normalizeText(text);
+  
   const hm = t.match(/\b(\d{1,2}):(\d{2})\b/);
   if (hm) {
     const h = Number(hm[1]);
@@ -579,6 +639,24 @@ function parseHoraInput(text: string): string | null {
     if (pm && h < 12) h += 12;
     if (!pm && h === 12) h = 0;
     return `${String(h).padStart(2, '0')}:00`;
+  }
+
+  const tarde = /tarde|noches?/i.test(t);
+  const aLas = t.match(/\ba\s+las\s+(\d{1,2})\b/);
+  if (aLas) {
+    let h = Number(aLas[1]);
+    if (tarde && h < 12) h += 12;
+    if (h >= 0 && h <= 23) {
+      return `${String(h).padStart(2, '0')}:00`;
+    }
+  }
+
+  const numOnly = t.match(/\b(\d{1,2})\b/);
+  if (numOnly) {
+    let h = Number(numOnly[1]);
+    if (h >= 7 && h <= 20) {
+      return `${String(h).padStart(2, '0')}:00`;
+    }
   }
 
   return null;
@@ -639,7 +717,10 @@ function formatBarberos(barberos: any[]): string {
 
 function showProductCategoryOverview(sessionKey: string, productos: any[]) {
   awaitingProductCategoryBySession.set(sessionKey, true);
+  const activos = productos.filter((p) => String(p?.estado || 'activo') === 'activo');
+  const catalogCards = buildProductCatalogCards(activos.slice(0, 4));
   return reply(sessionKey, formatProductosPorCategoria(productos), 'info', {
+    catalogCards,
     options: productCategoryOptions(),
   });
 }
@@ -797,17 +878,9 @@ function startBooking(): PendingBooking {
 
 function bookingIntro(servicios: any[]): string {
   return [
-    'Perfecto, vamos a agendar tu cita. Te iré pidiendo solo lo necesario:',
+    '¡Perfecto! Vamos a agendar tu cita paso a paso.',
     '',
-    '1. Servicio',
-    '2. Barbero',
-    '3. Fecha',
-    '4. Hora',
-    '',
-    'Servicios disponibles:',
-    formatServicios(servicios),
-    '',
-    '¿Qué servicio quieres?',
+    'Paso 1: Por favor, selecciona el servicio que deseas a continuación (puedes verlos divididos por Clásicos y Premium):',
   ].join('\n');
 }
 
@@ -853,8 +926,10 @@ export class ChatService {
     const awaitingCategory = awaitingServiceCategoryBySession.get(sk) === true;
     const chooseClasicos = /(clasico|clasicos)/.test(msgNorm);
     const choosePremium = /(premium)/.test(msgNorm);
+    const isDirectCategorySelection = msgNorm === 'clasicos' || msgNorm === 'premium' || msgNorm === 'clasico' || 
+      ((chooseClasicos || choosePremium) && /(servicio|precios|mostrar|ver)/.test(msgNorm));
 
-    if (awaitingCategory && (chooseClasicos || choosePremium)) {
+    if ((awaitingCategory && (chooseClasicos || choosePremium)) || isDirectCategorySelection) {
       const categoria = choosePremium ? 'premium' : 'clasico';
       const titulo = choosePremium ? 'Servicios Premium' : 'Servicios Clásicos';
       const subset = servicios.filter((s) => classifyServiceCategory(s) === categoria);
@@ -863,6 +938,7 @@ export class ChatService {
         ? '¿Te interesa alguno? Puedes preguntarme más detalles.'
         : '¿Quieres que te agende una cita con alguno?';
       const catalogCards = buildServiceCatalogCards(subset);
+      awaitingServiceCategoryBySession.delete(sk);
       return reply(
         sk,
         `${titulo}:\n\n${listado}\n\n${ctaAgendar}`,
@@ -906,7 +982,9 @@ export class ChatService {
     if ((/(servicio|servicios|precio|precios|costo|cuanto vale|tarifa)/.test(msgNorm) && !/(producto|productos)/.test(msgNorm))) {
       awaitingServiceCategoryBySession.set(sk, true);
       const grouped = formatServiciosPorCategoria(servicios);
+      const catalogCards = buildServiceCatalogCards(servicios);
       return reply(sk, grouped.text, 'info', {
+        catalogCards,
         options: filterGuestOptions(
           [
             { label: 'Clásicos', value: 'Clásicos' },
@@ -951,7 +1029,24 @@ export class ChatService {
       awaitingServiceCategoryBySession.delete(sk);
       awaitingProductCategoryBySession.delete(sk);
       pendingBookingBySession.set(sk, booking);
-      return reply(sk, bookingIntro(servicios), 'create_reservation', { step: 'servicio' });
+      const activos = servicios.filter((s: any) => String(s?.estado || 'activo') === 'activo');
+      
+      const sortedActivos = [...activos].sort((a, b) => {
+        const catA = classifyServiceCategory(a);
+        const catB = classifyServiceCategory(b);
+        if (catA === 'premium' && catB === 'clasico') return -1;
+        if (catA === 'clasico' && catB === 'premium') return 1;
+        return 0;
+      });
+
+      return reply(sk, bookingIntro(sortedActivos), 'create_reservation', {
+        step: 'servicio',
+        catalogCards: buildServiceCatalogCards(sortedActivos),
+        options: sortedActivos.map((s: any) => ({
+          label: formatCatalogName(s.nombre_servicio),
+          value: s.nombre_servicio
+        })).concat({ label: 'Cancelar', value: 'cancelar' })
+      });
     }
 
     if (/(promoc|promo|descuento|oferta)/.test(msgNorm)) {
@@ -1042,7 +1137,35 @@ export class ChatService {
         barberos
       );
       if (stepReply) return stepReply;
-      return reply(sk, bookingIntro(servicios), 'create_reservation', { step: booking.step });
+      const activos = servicios.filter((s: any) => String(s?.estado || 'activo') === 'activo');
+      
+      const sortedActivos = [...activos].sort((a, b) => {
+        const catA = classifyServiceCategory(a);
+        const catB = classifyServiceCategory(b);
+        if (catA === 'premium' && catB === 'clasico') return -1;
+        if (catA === 'clasico' && catB === 'premium') return 1;
+        return 0;
+      });
+
+      const opts = booking.step === 'servicio'
+        ? sortedActivos.map((s: any) => ({ label: formatCatalogName(s.nombre_servicio), value: s.nombre_servicio })).concat({ label: 'Cancelar', value: 'cancelar' })
+        : booking.step === 'barbero'
+          ? barberos.filter((b: any) => String(b?.estado || '').toLowerCase() === 'activo').map((b: any) => ({ label: formatPersonName(b.nombre, b.apellido), value: `${b.nombre} ${b.apellido}`.trim() })).concat({ label: 'Cancelar', value: 'cancelar' })
+          : booking.step === 'fecha'
+            ? [{ label: 'Hoy', value: 'hoy' }, { label: 'Mañana', value: 'mañana' }, { label: 'Pasado mañana', value: 'pasado mañana' }, { label: 'Cancelar', value: 'cancelar' }]
+            : undefined;
+
+      const catalogCards = booking.step === 'servicio'
+        ? buildServiceCatalogCards(sortedActivos)
+        : booking.step === 'barbero'
+          ? buildBarberCatalogCards(barberos.filter((b: any) => String(b?.estado || '').toLowerCase() === 'activo'))
+          : undefined;
+
+      return reply(sk, bookingIntro(sortedActivos), 'create_reservation', {
+        step: booking.step,
+        catalogCards,
+        options: opts
+      });
     }
 
     const fallback = (llm.message || '').trim() || [
@@ -1102,14 +1225,32 @@ export class ChatService {
     servicios: any[],
     barberos: any[]
   ): Promise<{ reply: string; intent: ChatIntent; meta?: any } | null> {
+    const barberosActivos = barberos.filter((b: any) => String(b?.estado || '').toLowerCase() === 'activo');
+    const serviciosActivos = servicios.filter((s: any) => String(s?.estado || 'activo') === 'activo');
+
     if (pending.step === 'servicio') {
       const matched = matchServicios(message, servicios);
       if (matched.ids.length === 0) {
+        const sortedActivos = [...serviciosActivos].sort((a, b) => {
+          const catA = classifyServiceCategory(a);
+          const catB = classifyServiceCategory(b);
+          if (catA === 'premium' && catB === 'clasico') return -1;
+          if (catA === 'clasico' && catB === 'premium') return 1;
+          return 0;
+        });
+
         return reply(
           sessionKey,
-          `No identifiqué ese servicio. Elige uno de la lista:\n\n${formatServicios(servicios)}`,
+          `No identifiqué ese servicio. Por favor, selecciona uno de los servicios a continuación (divididos por Clásicos y Premium):`,
           'create_reservation',
-          { step: 'servicio' }
+          {
+            step: 'servicio',
+            catalogCards: buildServiceCatalogCards(sortedActivos),
+            options: sortedActivos.map((s: any) => ({
+              label: formatCatalogName(s.nombre_servicio),
+              value: s.nombre_servicio
+            })).concat({ label: 'Cancelar', value: 'cancelar' })
+          }
         );
       }
 
@@ -1119,20 +1260,34 @@ export class ChatService {
 
       return reply(
         sessionKey,
-        `Servicio: ${pending.servicios_nombres[0]}\n\n¿Con qué barbero quieres la cita?\n\n${formatBarberos(barberos)}`,
+        `Servicio: ${pending.servicios_nombres[0]}\n\n¿Con qué barbero quieres la cita?\n\n${formatBarberos(barberosActivos)}`,
         'create_reservation',
-        { step: 'barbero' }
+        {
+          step: 'barbero',
+          catalogCards: buildBarberCatalogCards(barberosActivos),
+          options: barberosActivos.map((b: any) => ({
+            label: formatPersonName(b.nombre, b.apellido),
+            value: `${b.nombre} ${b.apellido}`.trim()
+          })).concat({ label: 'Cancelar', value: 'cancelar' })
+        }
       );
     }
 
     if (pending.step === 'barbero') {
-      const barbero = matchBarbero(message, barberos);
+      const barbero = matchBarbero(message, barberosActivos);
       if (!barbero?.id_usuario) {
         return reply(
           sessionKey,
-          `No encontré ese barbero. Escoge uno:\n\n${formatBarberos(barberos)}`,
+          `No encontré ese barbero. Escoge uno:\n\n${formatBarberos(barberosActivos)}`,
           'create_reservation',
-          { step: 'barbero' }
+          {
+            step: 'barbero',
+            catalogCards: buildBarberCatalogCards(barberosActivos),
+            options: barberosActivos.map((b: any) => ({
+              label: formatPersonName(b.nombre, b.apellido),
+              value: `${b.nombre} ${b.apellido}`.trim()
+            })).concat({ label: 'Cancelar', value: 'cancelar' })
+          }
         );
       }
 
@@ -1142,9 +1297,17 @@ export class ChatService {
 
       return reply(
         sessionKey,
-        `Barbero: ${pending.barbero_nombre}\n\n¿Qué fecha prefieres?\nEjemplos: mañana, 28/05/2026 o 2026-05-28`,
+        `Barbero: ${pending.barbero_nombre}\n\n¿Qué fecha prefieres?\nPor favor, dime primero el día, luego el mes y el año (ejemplo: 28 de mayo, 28/05/2026, escribe 'mañana' o selecciona una opción abajo).`,
         'create_reservation',
-        { step: 'fecha' }
+        {
+          step: 'fecha',
+          options: [
+            { label: 'Hoy', value: 'hoy' },
+            { label: 'Mañana', value: 'mañana' },
+            { label: 'Pasado mañana', value: 'pasado mañana' },
+            { label: 'Cancelar', value: 'cancelar' }
+          ]
+        }
       );
     }
 
@@ -1153,15 +1316,36 @@ export class ChatService {
       if (!fecha) {
         return reply(
           sessionKey,
-          'No entendí la fecha. Escríbela así: mañana, 28/05/2026 o 2026-05-28',
+          'No entendí la fecha. Dime primero el día, luego el mes y el año (ejemplo: 28 de mayo, 28/05/2026, escribe \'mañana\' o selecciona una opción abajo).',
           'create_reservation',
-          { step: 'fecha' }
+          {
+            step: 'fecha',
+            options: [
+              { label: 'Hoy', value: 'hoy' },
+              { label: 'Mañana', value: 'mañana' },
+              { label: 'Pasado mañana', value: 'pasado mañana' },
+              { label: 'Cancelar', value: 'cancelar' }
+            ]
+          }
         );
       }
 
       const hoy = toIsoDate(new Date());
       if (fecha < hoy) {
-        return reply(sessionKey, 'Esa fecha ya pasó. Elige una fecha de hoy en adelante.', 'create_reservation', { step: 'fecha' });
+        return reply(
+          sessionKey,
+          'Esa fecha ya pasó. Elige una fecha de hoy en adelante.',
+          'create_reservation',
+          {
+            step: 'fecha',
+            options: [
+              { label: 'Hoy', value: 'hoy' },
+              { label: 'Mañana', value: 'mañana' },
+              { label: 'Pasado mañana', value: 'pasado mañana' },
+              { label: 'Cancelar', value: 'cancelar' }
+            ]
+          }
+        );
       }
 
       pending.fecha = fecha;
@@ -1176,37 +1360,83 @@ export class ChatService {
         const motivo = (disp as any).motivo || 'No hay horarios disponibles ese día.';
         return reply(
           sessionKey,
-          `${motivo}\n\nPrueba con otra fecha.`,
+          `<span style="color:#ef5350;font-weight:600;">Ese día está ocupado o no disponible (${motivo}).</span>\n\nPrueba con otra fecha.`,
           'create_reservation',
-          { step: 'fecha' }
+          {
+            step: 'fecha',
+            options: [
+              { label: 'Hoy', value: 'hoy' },
+              { label: 'Mañana', value: 'mañana' },
+              { label: 'Pasado mañana', value: 'pasado mañana' },
+              { label: 'Cancelar', value: 'cancelar' }
+            ]
+          }
         );
       }
+
+      const horarios = disp.slots
+        .map((s: any) => {
+          if (s.disponible) {
+            return `• ${formatHoraLegible(s.hora)} (${s.hora})`;
+          } else {
+            return `• <span style="color:#ef5350;font-weight:600;">${formatHoraLegible(s.hora)} (${s.hora}) — Ocupado</span>`;
+          }
+        })
+        .join('\n');
 
       const libres = disp.slots.filter((s: any) => s.disponible).slice(0, 12);
       if (libres.length === 0) {
         pending.step = 'fecha';
         return reply(
           sessionKey,
-          'Ese día no quedan horarios libres. Prueba con otra fecha.',
+          '<span style="color:#ef5350;font-weight:600;">Ese día está ocupado (no quedan horarios libres para el barbero).</span>\n\nPrueba con otra fecha.',
           'create_reservation',
-          { step: 'fecha' }
+          {
+            step: 'fecha',
+            options: [
+              { label: 'Hoy', value: 'hoy' },
+              { label: 'Mañana', value: 'mañana' },
+              { label: 'Pasado mañana', value: 'pasado mañana' },
+              { label: 'Cancelar', value: 'cancelar' }
+            ]
+          }
         );
       }
 
-      const horarios = libres.map((s: any) => `• ${formatHoraLegible(s.hora)} (${s.hora})`).join('\n');
-
       return reply(
         sessionKey,
-        `Fecha: ${formatFechaLegible(fecha)}\n\nHorarios disponibles:\n${horarios}\n\n¿A qué hora quieres la cita? (ej: 10:30)`,
+        `Fecha: ${formatFechaLegible(fecha)}\n\nHorarios disponibles:\n${horarios}\n\n¿A qué hora quieres la cita? Por favor, dime primero la hora y luego los minutos (ejemplo: 10:30, 3:00 p.m. o selecciona un botón de abajo).`,
         'create_reservation',
-        { step: 'hora', slots: libres.map((s: any) => s.hora) }
+        {
+          step: 'hora',
+          slots: libres.map((s: any) => s.hora),
+          options: disp.slots.filter((s: any) => s.disponible).map((s: any) => ({
+            label: formatHoraLegible(s.hora),
+            value: s.hora
+          })).concat({ label: 'Cancelar', value: 'cancelar' })
+        }
       );
     }
 
     if (pending.step === 'hora') {
       const hora = parseHoraInput(message);
       if (!hora || !pending.id_barbero || !pending.fecha) {
-        return reply(sessionKey, 'Indica la hora en formato HH:MM (ej: 10:30 o 3:00 p.m.)', 'create_reservation', { step: 'hora' });
+        const servicio = servicios.find((s) => Number(s.id_servicio) === pending.servicios_ids[0]);
+        const duracion = Number(servicio?.duracion) || 30;
+        const disp = await ReservaService.getDisponibilidad(pending.id_barbero!, pending.fecha!, duracion);
+        
+        return reply(
+          sessionKey,
+          'Por favor, dime primero la hora y luego los minutos (ejemplo: 10:30, 3:00 p.m. o selecciona un botón de abajo).',
+          'create_reservation',
+          {
+            step: 'hora',
+            options: disp.slots?.filter((s: any) => s.disponible).map((s: any) => ({
+              label: formatHoraLegible(s.hora),
+              value: s.hora
+            })).concat({ label: 'Cancelar', value: 'cancelar' })
+          }
+        );
       }
 
       const servicio = servicios.find((s) => Number(s.id_servicio) === pending.servicios_ids[0]);
@@ -1215,13 +1445,19 @@ export class ChatService {
       const slot = disp.slots?.find((s: any) => s.hora === hora);
 
       if (!slot?.disponible) {
-        const libres = (disp.slots || []).filter((s: any) => s.disponible).slice(0, 8);
+        const libres = (disp.slots || []).filter((s: any) => s.disponible).slice(0, 12);
         const opciones = libres.map((s: any) => `• ${s.hora}`).join('\n');
         return reply(
           sessionKey,
-          `Esa hora no está disponible.\n\nHorarios libres:\n${opciones || 'Ninguno — prueba otra fecha.'}`,
+          `<span style="color:#ef5350;font-weight:600;">Esa hora está ocupada o no disponible.</span>\n\nHorarios libres:\n${opciones || 'Ninguno — prueba otra fecha.'}`,
           'create_reservation',
-          { step: 'hora' }
+          {
+            step: 'hora',
+            options: disp.slots?.filter((s: any) => s.disponible).map((s: any) => ({
+              label: formatHoraLegible(s.hora),
+              value: s.hora
+            })).concat({ label: 'Cancelar', value: 'cancelar' })
+          }
         );
       }
 
@@ -1248,13 +1484,22 @@ export class ChatService {
           'Te esperamos en Blendlap. Si necesitas ver tus citas, escribe "Mis citas".',
         ].join('\n');
 
-        return reply(sessionKey, confirmacion, 'create_reservation', { id_reserva: (created as any).id_reserva });
+        return reply(sessionKey, confirmacion, 'create_reservation', {
+          id_reserva: (created as any).id_reserva,
+          options: mainMenuOptions(false)
+        });
       } catch (err: any) {
         return reply(
           sessionKey,
           err?.message || 'No pude crear la reserva. Intenta con otra hora o fecha.',
           'create_reservation',
-          { step: 'hora' }
+          {
+            step: 'hora',
+            options: disp.slots?.filter((s: any) => s.disponible).map((s: any) => ({
+              label: formatHoraLegible(s.hora),
+              value: s.hora
+            })).concat({ label: 'Cancelar', value: 'cancelar' })
+          }
         );
       }
     }

@@ -107,6 +107,30 @@ export class ReservaController {
             res.status(400).json({ ok: false, mensaje: error.message });
         }
     }
+
+    static async getOcupacionBarbero(req: Request, res: Response): Promise<void> {
+        try {
+            const id_barbero = parseInt(req.query.id_barbero as string);
+            if (!id_barbero) {
+                res.status(400).json({ ok: false, mensaje: 'id_barbero es requerido' });
+                return;
+            }
+            const [rows] = await pool.execute<RowDataPacket[]>(
+                `SELECT DISTINCT fecha FROM reserva
+                 WHERE id_barbero = ? AND estado NOT IN ('cancelada')`,
+                [id_barbero]
+            );
+            const fechas = rows.map((r: any) => {
+                if (r.fecha instanceof Date) {
+                    return r.fecha.toISOString().slice(0, 10);
+                }
+                return String(r.fecha).slice(0, 10);
+            });
+            res.status(200).json({ ok: true, data: fechas });
+        } catch (error: any) {
+            res.status(500).json({ ok: false, mensaje: error.message });
+        }
+    }
     static async getCitasHoy(req: Request, res: Response): Promise<void> {
         try {
             const id_barbero = req.usuario!.id_usuario;
