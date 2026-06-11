@@ -405,18 +405,60 @@ function matchProductCategory(msgNorm: string): ProductCategoryKey | null {
   return null;
 }
 
+function simplifyProductName(fullName: string): string {
+  let word = fullName.trim().split(/[\s\-_]+/)[0].toLowerCase();
+  if (word === 'jean') return 'jeans';
+  if (word === 'balsamo') return 'bálsamos';
+  if (word === 'pantalon') return 'pantalones';
+  if (word === 'camisa') return 'camisas';
+  if (word === 'camiseta') return 'camisetas';
+  if (word === 'aceite') return 'aceites';
+  if (word === 'cera') return 'ceras';
+  if (word === 'shampoo') return 'shampoos';
+  if (word === 'acondicionador') return 'acondicionadores';
+  if (word === 'gorra') return 'gorras';
+  if (word === 'peine') return 'peines';
+  if (word === 'navaja') return 'navajas';
+  
+  if (word.endsWith('s')) return word;
+  if (/[aeiouáéíóú]$/.test(word)) {
+    return word + 's';
+  }
+  return word + 'es';
+}
+
 function formatProductosPorCategoria(productos: any[]): string {
   const activos = productos.filter((p) => String(p?.estado || 'activo') === 'activo');
   const bloques: string[] = ['En la tienda de Blendlap tenemos estas categorías de productos:\n'];
 
   for (const cat of PRODUCT_CATEGORY_KEYS) {
     const items = activos.filter((p) => productMatchesCategory(p, cat));
-    const nombres = items.slice(0, 5).map((p) => formatCatalogName(String(p.nombre_producto || ''))).join(', ');
-    const vendemos = nombres || 'Próximamente más artículos en esta categoría';
+    let listaTerminos: string[] = [];
+    if (items.length > 0) {
+      listaTerminos = [...new Set(items.map((p) => simplifyProductName(String(p.nombre_producto || ''))))];
+    }
+
+    let descripcion = '';
+    if (cat === 'barberia') {
+      const terminos = listaTerminos.length > 0 ? listaTerminos.join(', ') : 'ceras, aceites, bálsamos';
+      descripcion = `Tenemos: ${terminos}.`;
+    } else if (cat === 'ropa') {
+      const terminos = listaTerminos.length > 0 ? listaTerminos.join(', ') : 'camisas, pantalones, jeans';
+      descripcion = `Prendas con estilo en Blendlap como: ${terminos}.`;
+    } else if (cat === 'accesorios') {
+      const terminos = listaTerminos.length > 0 ? listaTerminos.join(', ') : 'gorras, peines, navajas';
+      descripcion = `Accesorios con estilo en Blendlap como: ${terminos}.`;
+    } else if (cat === 'cuidado') {
+      const terminos = listaTerminos.length > 0 ? listaTerminos.join(', ') : 'shampoos, acondicionadores';
+      descripcion = `Productos para tu cuidado personal en Blendlap como: ${terminos}.`;
+    } else {
+      const terminos = listaTerminos.length > 0 ? listaTerminos.join(', ') : 'artículos varios';
+      descripcion = `Tenemos: ${terminos}.`;
+    }
+
     bloques.push(
       `\n${productCategoryLabel(cat)}:`,
-      productCategoryDescription(cat),
-      `Lo que vendemos: ${vendemos}.`
+      descripcion
     );
   }
 
@@ -428,12 +470,17 @@ function buildProductCards(productos: any[]): ChatProductCard[] {
   return productos
     .filter((p) => String(p?.estado || 'activo') === 'activo')
     .slice(0, 12)
-    .map((p) => ({
-      nombre: formatCatalogName(String(p.nombre_producto || 'Producto')),
-      precio: formatPrecio(p.precio),
-      imagen: p.imagen ? String(p.imagen) : null,
-      disponible: Number(p.stock) > 0,
-    }));
+    .map((p) => {
+      const catLabel = productCategoryLabel(String(p.categoria || ''));
+      const precio = formatPrecio(p.precio);
+      const precioConCat = catLabel ? `${catLabel} · ${precio}` : precio;
+      return {
+        nombre: formatCatalogName(String(p.nombre_producto || 'Producto')),
+        precio: precioConCat,
+        imagen: p.imagen ? String(p.imagen) : null,
+        disponible: Number(p.stock) > 0,
+      };
+    });
 }
 
 function buildProductCatalogCards(productos: any[]): ChatCatalogCard[] {
@@ -501,27 +548,8 @@ function formatServiciosPorCategoria(servicios: any[]): {
   const clasicos = servicios.filter((s) => classifyServiceCategory(s) === 'clasico');
   const premium = servicios.filter((s) => classifyServiceCategory(s) === 'premium');
 
-  const mapLine = (s: any) => {
-    const precio = s.precio != null ? ` — ${formatPrecio(s.precio)}` : '';
-    const dur = s.duracion != null ? ` (${s.duracion} min)` : '';
-    return `• ${formatCatalogName(String(s.nombre_servicio || 'Servicio'))}${precio}${dur}`;
-  };
-
-  const clasicosTxt = clasicos.length > 0
-    ? clasicos.slice(0, 12).map(mapLine).join('\n')
-    : '• No hay servicios clásicos activos.';
-  const premiumTxt = premium.length > 0
-    ? premium.slice(0, 12).map(mapLine).join('\n')
-    : '• No hay servicios premium activos.';
-
   const text = [
-    'Tenemos dos categorías de servicios:',
-    '',
-    'Clásicos:',
-    clasicosTxt,
-    '',
-    'Premium:',
-    premiumTxt,
+    'Tenemos dos categorías de servicios: Clásicos y Premium.',
     '',
     '¿Qué categoría te interesa? Elige Clásicos o Premium.',
   ].join('\n');
@@ -743,11 +771,10 @@ function showProductsInCategory(sessionKey: string, productos: any[], cat: Produ
 
   const cards = buildProductCards(subset);
   const catalogCards = buildProductCatalogCards(subset);
-  const nombresLista = cards.map((p, i) => `${i + 1}. ${p.nombre} — ${p.precio}`).join('\n');
 
   return reply(
     sessionKey,
-    `Productos en ${label}:\n\n${nombresLista}\n\nPuedes comprarlos en la sección Productos del sitio.`,
+    `Productos en ${label}:\n\nPuedes comprarlos en la sección Productos del sitio.`,
     'info',
     {
       products: cards,
@@ -933,7 +960,6 @@ export class ChatService {
       const categoria = choosePremium ? 'premium' : 'clasico';
       const titulo = choosePremium ? 'Servicios Premium' : 'Servicios Clásicos';
       const subset = servicios.filter((s) => classifyServiceCategory(s) === categoria);
-      const listado = subset.length > 0 ? formatServicios(subset) : `No hay servicios ${choosePremium ? 'premium' : 'clásicos'} activos.`;
       const ctaAgendar = isGuest
         ? '¿Te interesa alguno? Puedes preguntarme más detalles.'
         : '¿Quieres que te agende una cita con alguno?';
@@ -941,7 +967,7 @@ export class ChatService {
       awaitingServiceCategoryBySession.delete(sk);
       return reply(
         sk,
-        `${titulo}:\n\n${listado}\n\n${ctaAgendar}`,
+        `${titulo}:\n\n${ctaAgendar}`,
         'info',
         {
           catalogCards,
@@ -1009,7 +1035,7 @@ export class ChatService {
         : '¿Quieres agendar con alguno? Dime "Agendar cita".';
       const catalogCards = buildBarberCatalogCards(activos);
       const text = activos.length > 0
-        ? `Barberos disponibles ahora:\n\n${formatBarberos(activos)}\n\n${ctaBarbero}`
+        ? `Barberos disponibles ahora:\n\n${ctaBarbero}`
         : 'En este momento no hay barberos activos/disponibles.';
       return reply(sk, text, 'info', {
         catalogCards: activos.length > 0 ? catalogCards : undefined,
